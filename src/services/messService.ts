@@ -498,14 +498,31 @@ export const getMemberDetails = async (messId: string, userId: string): Promise<
     };
 };
 
+// Helper to robustly handle date conversion from Firestore
+const safeDateToISOString = (dateValue: any): string => {
+    if (!dateValue) return new Date().toISOString();
+    
+    if (typeof dateValue.toDate === 'function') {
+        return dateValue.toDate().toISOString(); // It's a Firestore Timestamp
+    }
+    
+    // It's likely a string, number, or Date object already
+    const date = new Date(dateValue);
+    if (!isNaN(date.getTime())) {
+        return date.toISOString();
+    }
+
+    return new Date().toISOString(); // Fallback
+};
+
+
 export const getExpenses = async (messId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
     const snapshot = await getFirestoreDocs(query(expensesCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Expense;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
     });
 };
 
@@ -515,8 +532,7 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
     const snapshot = await getFirestoreDocs(query(depositsCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Deposit;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
     });
 };
 
@@ -529,8 +545,7 @@ export const getDepositsForUser = async (messId: string, userId: string): Promis
     const snapshot = await getFirestoreDocs(q);
     const data = snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Deposit;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
     });
     // Sort client-side to avoid needing a composite index
     return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -543,8 +558,7 @@ export const getExpensesForUser = async (messId: string, userId: string): Promis
     const snapshot = await getFirestoreDocs(q);
     const data = snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Expense;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
     });
     // Sort client-side to avoid needing a composite index
     return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -768,7 +782,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
             const newBalance = (memberDoc.data().balance || 0) + pendingDeposit.amount;
             const newDepositRef = doc(collection(db, 'messes', messId, 'deposits'));
             const { id, type: reqType, originalId, originalAmount, status, ...finalDepositData } = pendingDeposit;
-            transaction.set(newDepositRef, { ...finalDepositData, status: 'approved', approvedAt: serverTimestamp() });
+            transaction.set(newDepositRef, { ...finalDepositData, date: new Date(pendingDeposit.date), status: 'approved', approvedAt: serverTimestamp() });
             transaction.update(memberRef, { balance: newBalance });
         } else if (type === 'edit') {
             const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
@@ -816,7 +830,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
         if (type === 'new') {
             const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
             const { id, type: reqType, originalId, originalData, status, ...finalExpenseData } = pendingExpense;
-            transaction.set(newExpenseRef, { ...finalExpenseData, status: 'approved', approvedAt: serverTimestamp() });
+            transaction.set(newExpenseRef, { ...finalExpenseData, date: new Date(pendingExpense.date), status: 'approved', approvedAt: serverTimestamp() });
         } else if (type === 'edit') {
             const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
             transaction.update(originalExpenseRef, { amount: pendingExpense.amount, description: pendingExpense.description });
@@ -1280,8 +1294,7 @@ const getExpensesForMonth = async (messId: string, year: number, month: number):
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Expense;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
     });
 };
 
@@ -1295,8 +1308,7 @@ const getDepositsForMonth = async (messId: string, year: number, month: number):
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp).toDate().toISOString();
-        return { id: doc.id, ...data, date } as Deposit;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
     });
 };
 
