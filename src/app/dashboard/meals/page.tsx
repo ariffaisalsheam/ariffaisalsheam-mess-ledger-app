@@ -42,7 +42,7 @@ import { format, parseISO } from 'date-fns';
 import { AddMealRecordDialog } from '../members/add-meal-record-dialog';
 import { Badge } from '@/components/ui/badge';
 
-type MealType = keyof MealStatus;
+type MealType = keyof Omit<MealStatus, 'isSetByUser'>;
 
 export default function MealsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -136,12 +136,14 @@ export default function MealsPage() {
   }, [mealHistory]);
 
   const handleMealCountChange = (meal: MealType, value: string) => {
+    const newCount = parseFloat(value);
+    
     if (value === '') {
         setMeals(prev => prev ? { ...prev, [meal]: 0 } : null);
         setIsSaved(false);
         return;
     }
-    const newCount = parseFloat(value);
+
     if (!isNaN(newCount) && newCount >= 0) {
       setMeals(prev => prev ? { ...prev, [meal]: newCount } : null);
       setIsSaved(false);
@@ -217,7 +219,7 @@ export default function MealsPage() {
       type="number"
       step="0.5"
       min="0"
-      value={meals?.[meal] ?? 0}
+      value={meals?.[meal] ?? ''}
       onChange={(e) => handleMealCountChange(meal, e.target.value)}
       disabled={isLocked || submitting['save']}
       aria-readonly={isLocked}

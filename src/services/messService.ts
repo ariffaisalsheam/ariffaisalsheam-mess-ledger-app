@@ -115,52 +115,29 @@ export const createNotification = async (messId: string, notificationData: Omit<
 export const onNotificationsChange = (messId: string, userId: string, role: 'manager' | 'member' | undefined, callback: (notifications: Notification[]) => void) => {
     if (!db || !role) return () => {};
 
-    const notificationsRef = collection(db, 'messes', messId, 'notifications');
-    let personalNotifications: Notification[] = [];
-    let managerNotifications: Notification[] = [];
+    let allNotifications: Notification[] = [];
     const unsubscribes: (() => void)[] = [];
 
     const combineAndCallback = () => {
-        const allNotificationsMap = new Map<string, Notification>();
-        [...personalNotifications, ...managerNotifications].forEach(n => {
-            allNotificationsMap.set(n.id, n);
-        });
-        
-        const uniqueNotifications = Array.from(allNotificationsMap.values());
-        
-        uniqueNotifications.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis() || 0;
-            const timeB = b.timestamp?.toMillis() || 0;
-            return timeB - timeA;
-        });
-
+        const uniqueNotifications = Array.from(new Map(allNotifications.map(n => [n.id, n])).values());
+        uniqueNotifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
         callback(uniqueNotifications.slice(0, 20));
     };
-
-    const personalQuery = query(notificationsRef, where('userId', '==', userId));
+    
+    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
-        personalNotifications = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            timestamp: doc.data().timestamp as Timestamp
-        })) as Notification[];
+        const personalNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+        allNotifications = [...allNotifications.filter(n => n.userId !== userId), ...personalNotifications];
         combineAndCallback();
-    }, (error) => {
-        console.error("Error fetching personal notifications:", error);
     });
     unsubscribes.push(personalUnsubscribe);
 
     if (role === 'manager') {
-        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
+        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
-            managerNotifications = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                timestamp: doc.data().timestamp as Timestamp
-            })) as Notification[];
+            const managerNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+            allNotifications = [...allNotifications.filter(n => n.userId !== 'manager'), ...managerNotifications];
             combineAndCallback();
-        }, (error) => {
-            console.error("Error fetching manager notifications:", error);
         });
         unsubscribes.push(managerUnsubscribe);
     }
@@ -773,31 +750,26 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        let oldMeals: MealStatus = { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
+        let oldMealTotalForDate = 0;
         if (mealDoc.exists()) {
-            oldMeals = mealDoc.data() as MealStatus;
+            const oldMealsData = mealDoc.data() as MealStatus;
+            oldMealTotalForDate = (oldMealsData.breakfast || 0) + (oldMealsData.lunch || 0) + (oldMealsData.dinner || 0);
         }
 
-        const breakfastDiff = (newMeals.breakfast ?? 0) - (oldMeals.breakfast ?? 0);
-        const lunchDiff = (newMeals.lunch ?? 0) - (oldMeals.lunch ?? 0);
-        const dinnerDiff = (newMeals.dinner ?? 0) - (oldMeals.dinner ?? 0);
-        const totalMealDiff = breakfastDiff + lunchDiff + dinnerDiff;
-
-        // If only isSetByUser is changing, and meal counts are the same
-        if (totalMealDiff === 0 && newMeals.isSetByUser !== oldMeals.isSetByUser) {
-            transaction.set(mealDocRef, { isSetByUser: newMeals.isSetByUser }, { merge: true });
-            return; // No need to update total meals
-        }
+        const newMealTotalForDate = (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0);
         
-        if (totalMealDiff === 0) return; // No change at all
-
+        const mealCountChange = newMealTotalForDate - oldMealTotalForDate;
+        
         const currentTotalMeals = memberDoc.data().meals || 0;
-        const newTotalMeals = currentTotalMeals + totalMealDiff;
+        
+        const isSame = mealCountChange === 0 && mealDoc.exists() && mealDoc.data()?.isSetByUser === newMeals.isSetByUser;
+        if(isSame) return;
 
-        // Update member's total meal count
-        transaction.update(memberRef, { meals: newTotalMeals });
+        if(mealCountChange !== 0) {
+            const newTotalMeals = currentTotalMeals + mealCountChange;
+            transaction.update(memberRef, { meals: newTotalMeals });
+        }
 
-        // Update the meal status document for the specified date
         transaction.set(mealDocRef, newMeals, { merge: true });
     });
 };
@@ -811,6 +783,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     startDate.setDate(startDate.getDate() - (days - 1));
     const startDateString = startDate.toISOString().split('T')[0];
     
+    // The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/mess-x/firestore/indexes?create_composite=CkRwcm9qZWN0cy9tZXNzLXgvZGF0YWJhc2VzLyhkZWZhdWx0KS9jb2xsZWN0aW9uR3JvdXBzL21lYWxzL2luZGV4ZXMvXxABGgwKCF9fbmFtZV9fEAI
     const q = query(mealsColRef, where(documentId(), '>=', startDateString));
     const querySnapshot = await getFirestoreDocs(q);
 
@@ -822,6 +795,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
+    // Sort in code to avoid composite index
     ledger.sort((a, b) => b.date.localeCompare(a.date));
 
     return ledger.slice(0, days);
