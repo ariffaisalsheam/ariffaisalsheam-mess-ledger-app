@@ -75,7 +75,7 @@ export default function ReportsPage() {
             toast({ title: "Error", description: "Report content not found.", variant: "destructive" });
             return;
         }
-
+    
         setDownloading(true);
         try {
             const canvas = await html2canvas(reportElement, {
@@ -86,27 +86,26 @@ export default function ReportsPage() {
             const imgData = canvas.toDataURL('image/png');
             
             const pdf = new jsPDF('p', 'mm', 'a4');
+            const PADDING = 15;
             const pdfWidth = pdf.internal.pageSize.getWidth();
             const pdfHeight = pdf.internal.pageSize.getHeight();
             
-            const canvasWidth = canvas.width;
-            const canvasHeight = canvas.height;
-            const ratio = canvasWidth / pdfWidth;
-            const canvasHeightInPdf = canvasHeight / ratio;
-
-            let heightLeft = canvasHeightInPdf;
-            let position = 0;
-
-            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
-            heightLeft -= pdfHeight;
-
+            const contentWidth = pdfWidth - PADDING * 2;
+            const contentHeight = canvas.height * contentWidth / canvas.width;
+    
+            let heightLeft = contentHeight;
+            let position = PADDING;
+    
+            pdf.addImage(imgData, 'PNG', PADDING, position, contentWidth, contentHeight);
+            heightLeft -= (pdfHeight - PADDING * 2);
+    
             while (heightLeft > 0) {
-              position = heightLeft - canvasHeightInPdf;
-              pdf.addPage();
-              pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, canvasHeightInPdf);
-              heightLeft -= pdfHeight;
+                position = heightLeft - contentHeight + PADDING; // Adjust position for the new page with padding
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', PADDING, position, contentWidth, contentHeight);
+                heightLeft -= (pdfHeight - PADDING * 2);
             }
-
+    
             pdf.save(`Mess-Report-${messName}-${report.month}-${report.year}.pdf`);
         } catch(error) {
             console.error("Failed to download PDF:", error);
@@ -211,7 +210,7 @@ export default function ReportsPage() {
                 </Card>
 
                 {/* Hidden Div for PDF Generation */}
-                <div className="absolute -left-[9999px] top-0 w-[800px] bg-white text-black p-8 font-sans">
+                <div className="absolute -left-[9999px] top-0 w-[800px] bg-white text-black font-sans p-8">
                     <div id="pdf-content">
                         <div className="flex items-center justify-between border-b-2 border-gray-200 pb-4 mb-6">
                             <div className="flex items-center gap-4">
@@ -227,26 +226,28 @@ export default function ReportsPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-4 text-center my-8">
+                        <div className="grid grid-cols-4 gap-4 text-center my-8 p-4 border border-gray-200 rounded-lg">
                             <div><p className="text-sm text-gray-500">Total Expenses</p><p className="text-2xl font-bold">৳{report.totalExpenses.toFixed(2)}</p></div>
                             <div><p className="text-sm text-gray-500">Total Meals</p><p className="text-2xl font-bold">{report.totalMeals.toFixed(2)}</p></div>
                             <div><p className="text-sm text-gray-500">Meal Rate</p><p className="text-2xl font-bold">৳{report.mealRate.toFixed(2)}</p></div>
                             <div><p className="text-sm text-gray-500">Total Deposits</p><p className="text-2xl font-bold">৳{report.totalDeposits.toFixed(2)}</p></div>
                         </div>
                         
-                        <div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Member Breakdown</h3>
-                            <table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Member</th><th className="text-right p-2 font-bold">Total Meals (Guests)</th><th className="text-right p-2 font-bold">Meal Cost</th><th className="text-right p-2 font-bold">Deposits</th><th className="text-right p-2 font-bold">Balance</th></tr></thead><tbody>{report.memberReports.map((member, index) => (<tr key={member.memberId} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2 flex items-center gap-2"><img src={member.avatar} className="h-6 w-6 rounded-full" alt="" data-ai-hint="person portrait"/><span>{member.memberName}</span></td><td className="text-right p-2 font-mono">{member.totalMeals.toFixed(2)}{member.totalGuestMeals > 0 && (<span className="text-gray-500"> ({member.totalGuestMeals.toFixed(2)})</span>)}</td><td className="text-right p-2 font-mono text-red-600">-৳{member.mealCost.toFixed(2)}</td><td className="text-right p-2 font-mono text-green-600">+৳{member.totalDeposits.toFixed(2)}</td><td className={`text-right p-2 font-bold ${member.finalBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>৳{member.finalBalance.toFixed(2)}</td></tr>))}</tbody></table>
-                        </div>
+                        <div className="space-y-8">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Member Breakdown</h3>
+                                <div className="border border-gray-200 rounded-lg overflow-hidden"><table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Member</th><th className="text-right p-2 font-bold">Total Meals (Guests)</th><th className="text-right p-2 font-bold">Meal Cost</th><th className="text-right p-2 font-bold">Deposits</th><th className="text-right p-2 font-bold">Balance</th></tr></thead><tbody>{report.memberReports.map((member, index) => (<tr key={member.memberId} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2 flex items-center gap-2"><img src={member.avatar} className="h-6 w-6 rounded-full" alt="" data-ai-hint="person portrait"/><span>{member.memberName}</span></td><td className="text-right p-2 font-mono">{member.totalMeals.toFixed(2)}{member.totalGuestMeals > 0 && (<span className="text-gray-500"> ({member.totalGuestMeals.toFixed(2)})</span>)}</td><td className="text-right p-2 font-mono text-red-600">-৳{member.mealCost.toFixed(2)}</td><td className="text-right p-2 font-mono text-green-600">+৳{member.totalDeposits.toFixed(2)}</td><td className={`text-right p-2 font-bold ${member.finalBalance >= 0 ? 'text-green-700' : 'text-red-700'}`}>৳{member.finalBalance.toFixed(2)}</td></tr>))}</tbody></table></div>
+                            </div>
 
-                        <div className="mt-8">
-                            <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Expenses Ledger</h3>
-                            <table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Date</th><th className="text-left p-2 font-bold">Description</th><th className="text-left p-2 font-bold">Added By</th><th className="text-right p-2 font-bold">Amount</th></tr></thead><tbody>{report.expenses.length > 0 ? report.expenses.map((expense: Expense, index) => (<tr key={expense.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2">{format(new Date(expense.date), 'PP')}</td><td className="p-2">{expense.description}</td><td className="p-2">{expense.addedBy}</td><td className="text-right p-2 font-mono">-৳{expense.amount.toFixed(2)}</td></tr>)) : (<tr><td colSpan={4} className="text-center p-8 text-gray-500">No expenses for this month.</td></tr>)}</tbody></table>
-                        </div>
-                        
-                        <div className="mt-8">
-                            <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Deposits Ledger</h3>
-                            <table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Date</th><th className="text-left p-2 font-bold">Member</th><th className="text-right p-2 font-bold">Amount</th></tr></thead><tbody>{report.deposits.length > 0 ? report.deposits.map((deposit: Deposit, index) => (<tr key={deposit.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2">{format(new Date(deposit.date), 'PP')}</td><td className="p-2">{deposit.memberName}</td><td className="text-right p-2 font-mono text-green-600">+৳{deposit.amount.toFixed(2)}</td></tr>)) : (<tr><td colSpan={3} className="text-center p-8 text-gray-500">No deposits for this month.</td></tr>)}</tbody></table>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Expenses Ledger</h3>
+                                <div className="border border-gray-200 rounded-lg overflow-hidden"><table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Date</th><th className="text-left p-2 font-bold">Description</th><th className="text-left p-2 font-bold">Added By</th><th className="text-right p-2 font-bold">Amount</th></tr></thead><tbody>{report.expenses.length > 0 ? report.expenses.map((expense: Expense, index) => (<tr key={expense.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2">{format(new Date(expense.date), 'PP')}</td><td className="p-2">{expense.description}</td><td className="p-2">{expense.addedBy}</td><td className="text-right p-2 font-mono">-৳{expense.amount.toFixed(2)}</td></tr>)) : (<tr><td colSpan={4} className="text-center p-8 text-gray-500">No expenses for this month.</td></tr>)}</tbody></table></div>
+                            </div>
+                            
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-800 mb-2 border-b pb-1">Deposits Ledger</h3>
+                                <div className="border border-gray-200 rounded-lg overflow-hidden"><table className="w-full text-sm"><thead><tr><th className="text-left p-2 font-bold">Date</th><th className="text-left p-2 font-bold">Member</th><th className="text-right p-2 font-bold">Amount</th></tr></thead><tbody>{report.deposits.length > 0 ? report.deposits.map((deposit: Deposit, index) => (<tr key={deposit.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}><td className="p-2">{format(new Date(deposit.date), 'PP')}</td><td className="p-2">{deposit.memberName}</td><td className="text-right p-2 font-mono text-green-600">+৳{deposit.amount.toFixed(2)}</td></tr>)) : (<tr><td colSpan={3} className="text-center p-8 text-gray-500">No deposits for this month.</td></tr>)}</tbody></table></div>
+                            </div>
                         </div>
 
                         <div className="mt-12 pt-4 border-t-2 border-gray-200 text-center text-xs text-gray-500">
@@ -261,3 +262,5 @@ export default function ReportsPage() {
         </div>
     );
 }
+
+    
