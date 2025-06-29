@@ -138,7 +138,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     };
 
     // Listener for personal notifications
-    const personalQuery = query(notificationsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
+    const personalQuery = query(notificationsRef, where('userId', '==', userId));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -153,7 +153,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     // If the user is a manager, also listen for manager-wide notifications
     if (role === 'manager') {
-        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
+        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             managerNotifications = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -926,5 +926,7 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         }
     });
 };
+
+    
 
     
