@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -71,6 +64,9 @@ export interface MealSettings {
     breakfastCutoff: string; // "HH:mm"
     lunchCutoff: string;
     dinnerCutoff: string;
+    isBreakfastOn: boolean;
+    isLunchOn: boolean;
+    isDinnerOn: boolean;
 }
 
 export interface MealStatus {
@@ -120,6 +116,9 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
         breakfastCutoff: "02:00",
         lunchCutoff: "13:00",
         dinnerCutoff: "20:00",
+        isBreakfastOn: true,
+        isLunchOn: true,
+        isDinnerOn: true,
     }
   });
 

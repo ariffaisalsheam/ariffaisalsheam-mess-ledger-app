@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { updateMealForToday, type Member, type UserProfile, type MealStatus } from "@/services/messService";
+import { updateMealForToday, type Member, type UserProfile, type MealStatus, type MealSettings } from "@/services/messService";
 import { MealLedgerDialog } from './meal-ledger-dialog';
 import { AddMealRecordDialog } from './add-meal-record-dialog';
 
@@ -28,10 +28,11 @@ interface MemberListProps {
   messId: string;
   currentUserProfile: UserProfile;
   initialMealStatuses: Record<string, MealStatus>;
+  mealSettings: MealSettings | null;
   onUpdate: () => void;
 }
 
-export function MemberList({ members, messId, currentUserProfile, initialMealStatuses, onUpdate }: MemberListProps) {
+export function MemberList({ members, messId, currentUserProfile, initialMealStatuses, mealSettings, onUpdate }: MemberListProps) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
   const [isMealRecordDialogOpen, setIsMealRecordDialogOpen] = useState(false);
@@ -163,9 +164,9 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
                   <TableCell className="text-center">{member.meals.toFixed(2)}</TableCell>
                   <TableCell>
                     <div className="flex justify-center items-center gap-2 text-xs text-muted-foreground">
-                        B<MealOverrideInput memberId={member.id} meal="breakfast" />
-                        L<MealOverrideInput memberId={member.id} meal="lunch" />
-                        D<MealOverrideInput memberId={member.id} meal="dinner" />
+                        {mealSettings?.isBreakfastOn && <>B<MealOverrideInput memberId={member.id} meal="breakfast" /></>}
+                        {mealSettings?.isLunchOn && <>L<MealOverrideInput memberId={member.id} meal="lunch" /></>}
+                        {mealSettings?.isDinnerOn && <>D<MealOverrideInput memberId={member.id} meal="dinner" /></>}
                     </div>
                   </TableCell>
                   <TableCell>

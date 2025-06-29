@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +53,9 @@ export default function SettingsPage() {
         breakfastCutoff: "02:00",
         lunchCutoff: "13:00",
         dinnerCutoff: "20:00",
+        isBreakfastOn: true,
+        isLunchOn: true,
+        isDinnerOn: true,
     });
 
     useEffect(() => {
@@ -82,8 +86,7 @@ export default function SettingsPage() {
     
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
-        const key = id.replace('-cutoff', 'Cutoff') as keyof MealSettings;
-        setMealSettings(prev => ({...prev, [key]: value }));
+        setMealSettings(prev => ({...prev, [id]: value }));
     }
 
     const handleSaveMealSettings = async () => {
@@ -147,22 +150,46 @@ export default function SettingsPage() {
             
             <Card>
                 <CardHeader>
-                <CardTitle className="font-headline">Meal Settings</CardTitle>
-                <CardDescription>Set the cut-off times for daily meals. Members must toggle their meals before these times.</CardDescription>
+                    <CardTitle className="font-headline">Meal Settings</CardTitle>
+                    <CardDescription>Enable or disable meals, and set cut-off times. Members can only toggle meals that are ON.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-6 md:grid-cols-3">
-                <div className="space-y-2">
-                    <Label htmlFor="breakfastCutoff">Breakfast Cut-off</Label>
-                    <Input id="breakfastCutoff" type="time" value={mealSettings.breakfastCutoff} onChange={handleSettingsChange} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="lunchCutoff">Lunch Cut-off</Label>
-                    <Input id="lunchCutoff" type="time" value={mealSettings.lunchCutoff} onChange={handleSettingsChange} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="dinnerCutoff">Dinner Cut-off</Label>
-                    <Input id="dinnerCutoff" type="time" value={mealSettings.dinnerCutoff} onChange={handleSettingsChange} />
-                </div>
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="isBreakfastOn" className="font-medium">Breakfast</Label>
+                            <Switch
+                                id="isBreakfastOn"
+                                checked={mealSettings.isBreakfastOn}
+                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isBreakfastOn: checked }))}
+                            />
+                        </div>
+                        <Label htmlFor="breakfastCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                        <Input id="breakfastCutoff" type="time" value={mealSettings.breakfastCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isBreakfastOn} />
+                    </div>
+                    <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                            <Label htmlFor="isLunchOn" className="font-medium">Lunch</Label>
+                            <Switch
+                                id="isLunchOn"
+                                checked={mealSettings.isLunchOn}
+                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isLunchOn: checked }))}
+                            />
+                        </div>
+                        <Label htmlFor="lunchCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                        <Input id="lunchCutoff" type="time" value={mealSettings.lunchCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isLunchOn} />
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="isDinnerOn" className="font-medium">Dinner</Label>
+                            <Switch
+                                id="isDinnerOn"
+                                checked={mealSettings.isDinnerOn}
+                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isDinnerOn: checked }))}
+                            />
+                        </div>
+                        <Label htmlFor="dinnerCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                        <Input id="dinnerCutoff" type="time" value={mealSettings.dinnerCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isDinnerOn} />
+                    </div>
                 </CardContent>
                 <CardFooter className="border-t px-6 py-4">
                     <Button onClick={handleSaveMealSettings} disabled={isSaving}>

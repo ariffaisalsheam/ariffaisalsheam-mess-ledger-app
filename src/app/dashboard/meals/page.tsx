@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -164,6 +164,15 @@ export default function MealsPage() {
     );
   }
 
+  const enabledMeals = (['breakfast', 'lunch', 'dinner'] as const).filter(meal => {
+    switch (meal) {
+        case 'breakfast': return mealSettings?.isBreakfastOn;
+        case 'lunch': return mealSettings?.isLunchOn;
+        case 'dinner': return mealSettings?.isDinnerOn;
+        default: return false;
+    }
+  });
+
   return (
     <div className="space-y-6">
       <Card>
@@ -173,29 +182,29 @@ export default function MealsPage() {
             Set your meal count for today (e.g., 1 for full, 0.5 for half). Toggles lock after the cut-off time.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className={`flex items-center justify-between p-3 rounded-lg ${isBreakfastLocked ? 'bg-muted/50' : ''}`}>
-            <div>
-              <Label htmlFor="breakfast-count" className="text-base font-medium">Breakfast</Label>
-              <p className="text-sm text-muted-foreground">Cut-off: {breakfastCutoffTime}. {isBreakfastLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
-            </div>
-            <MealCountControl meal="breakfast" isLocked={isBreakfastLocked} />
-          </div>
-          <Separator />
-          <div className={`flex items-center justify-between p-3 rounded-lg ${isLunchLocked ? 'bg-muted/50' : ''}`}>
-            <div>
-                <Label htmlFor="lunch-count" className="text-base font-medium">Lunch</Label>
-                <p className="text-sm text-muted-foreground">Cut-off: {lunchCutoffTime}. {isLunchLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
-            </div>
-            <MealCountControl meal="lunch" isLocked={isLunchLocked} />
-          </div>
-          <Separator />
-          <div className={`flex items-center justify-between p-3 rounded-lg ${isDinnerLocked ? 'bg-muted/50' : ''}`}>
-            <div>
-                <Label htmlFor="dinner-count" className="text-base font-medium">Dinner</Label>
-                <p className="text-sm text-muted-foreground">Cut-off: {dinnerCutoffTime}. {isDinnerLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
-            </div>
-            <MealCountControl meal="dinner" isLocked={isDinnerLocked} />
+        <CardContent>
+          <div className="space-y-4">
+            {enabledMeals.length > 0 ? (
+                enabledMeals.map((meal, index) => {
+                    const isLocked = meal === 'breakfast' ? isBreakfastLocked : meal === 'lunch' ? isLunchLocked : isDinnerLocked;
+                    const cutoffTime = meal === 'breakfast' ? breakfastCutoffTime : meal === 'lunch' ? lunchCutoffTime : dinnerCutoffTime;
+                    
+                    return (
+                        <React.Fragment key={meal}>
+                            <div className={`flex items-center justify-between p-3 rounded-lg ${isLocked ? 'bg-muted/50' : ''}`}>
+                                <div>
+                                    <Label htmlFor={`${meal}-count`} className="text-base font-medium capitalize">{meal}</Label>
+                                    <p className="text-sm text-muted-foreground">Cut-off: {cutoffTime}. {isLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
+                                </div>
+                                <MealCountControl meal={meal} isLocked={isLocked} />
+                            </div>
+                            {index < enabledMeals.length - 1 && <Separator />}
+                        </React.Fragment>
+                    )
+                })
+            ) : (
+                <p className="text-center text-muted-foreground py-4">All meals are currently disabled by the manager.</p>
+            )}
           </div>
         </CardContent>
       </Card>
