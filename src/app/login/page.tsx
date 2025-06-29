@@ -103,8 +103,8 @@ export default function LoginPage() {
           <div className="mb-4 flex justify-center">
             <Logo />
           </div>
-          <CardTitle className="text-2xl font-headline">Welcome Back!</CardTitle>
-          <CardDescription>Login to manage your mess.</CardDescription>
+          <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+          <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">

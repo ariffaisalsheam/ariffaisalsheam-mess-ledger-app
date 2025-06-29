@@ -99,10 +99,8 @@ export default function SignupPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Create an Account</CardTitle>
-            <CardDescription>
-                Enter your information to get started.
-            </CardDescription>
+            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
