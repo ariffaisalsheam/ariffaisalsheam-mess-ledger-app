@@ -286,7 +286,7 @@ export default function DashboardLayout({
                     <Wallet className="h-4 w-4 text-muted-foreground"/>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                    <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                    <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
                         {userBalance >= 0 ? '+' : '-'}৳{Math.abs(userBalance).toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground">Your current account standing</p>

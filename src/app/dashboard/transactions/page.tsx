@@ -167,7 +167,7 @@ export default function TransactionsPage() {
                     <TableCell>{type === 'deposit' ? (item as Deposit).memberName : (item as Expense).addedBy}</TableCell>
                     {type === 'expense' && <TableCell>{(item as Expense).description}</TableCell>}
                     <TableCell>{format(new Date(item.date), 'PP')}</TableCell>
-                    <TableCell className={`text-right font-mono ${type === 'deposit' ? 'text-primary' : 'text-destructive'}`}>
+                    <TableCell className={`text-right font-mono ${type === 'deposit' ? 'text-success' : 'text-destructive'}`}>
                         {type === 'deposit' ? '+' : '-'} ৳{item.amount.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">

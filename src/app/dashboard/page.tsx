@@ -135,10 +135,10 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Mess Balance</CardTitle>
-              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>৳</span>
+              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-success' : 'text-destructive'}`}>৳</span>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
+              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {totalMessBalance >= 0 ? '+' : '-'}৳{Math.abs(totalMessBalance).toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">Remaining funds in the mess account</p>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-              <span className="text-lg text-primary">৳</span>
+              <span className="text-lg text-success">৳</span>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">৳{totalDeposits.toFixed(2)}</div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
                                   <p className="font-medium">{deposit.memberName}</p>
                               </div>
                               <div className="text-right">
-                                  <p className="font-bold text-lg text-primary">+ ৳{deposit.amount.toFixed(2)}</p>
+                                  <p className="font-bold text-lg text-success">+ ৳{deposit.amount.toFixed(2)}</p>
                                   <p className="text-xs text-muted-foreground">{format(new Date(deposit.date), "PPP")}</p>
                               </div>
                               </div>

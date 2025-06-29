@@ -134,11 +134,11 @@ export default function ReviewPage() {
             <p className="text-sm text-muted-foreground">Submitted by {item.memberName} on {format(new Date(item.date), "PPP")}</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item, 'reject', 'deposit')} disabled={submitting[item.id]}>
+            <Button variant="outline" size="icon" className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleAction(item, 'reject', 'deposit')} disabled={submitting[item.id]}>
                 {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                 <span className="sr-only">Reject</span>
             </Button>
-            <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item, 'approve', 'deposit')} disabled={submitting[item.id]}>
+            <Button variant="outline" size="icon" className="border-success text-success hover:bg-success/10 hover:text-success" onClick={() => handleAction(item, 'approve', 'deposit')} disabled={submitting[item.id]}>
                 {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
                 <span className="sr-only">Approve</span>
             </Button>
@@ -187,11 +187,11 @@ export default function ReviewPage() {
                 <p className="text-sm text-muted-foreground">Submitted by {item.addedBy} on {format(new Date(item.date), "PPP")}</p>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item, 'reject', 'expense')} disabled={submitting[item.id]}>
+                <Button variant="outline" size="icon" className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleAction(item, 'reject', 'expense')} disabled={submitting[item.id]}>
                     {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                     <span className="sr-only">Reject</span>
                 </Button>
-                <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item, 'approve', 'expense')} disabled={submitting[item.id]}>
+                <Button variant="outline" size="icon" className="border-success text-success hover:bg-success/10 hover:text-success" onClick={() => handleAction(item, 'approve', 'expense')} disabled={submitting[item.id]}>
                     {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
                     <span className="sr-only">Approve</span>
                 </Button>
