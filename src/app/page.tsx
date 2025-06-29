@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from "react";
@@ -20,7 +21,7 @@ export default function SplashPage() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo />
         <h1 className="text-5xl font-bold font-headline text-primary">
-          KhanaConnect
+          Mess Ledger
         </h1>
         <p className="text-lg font-semibold text-muted-foreground">
           Transparent Tracking, Effortless Settlement

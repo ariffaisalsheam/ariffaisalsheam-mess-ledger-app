@@ -217,7 +217,7 @@ export default function ReportsPage() {
                             <div className="flex items-center gap-4">
                                 <Logo />
                                 <div>
-                                    <h1 className="text-2xl font-bold text-gray-800">KhanaConnect</h1>
+                                    <h1 className="text-2xl font-bold text-gray-800">Mess Ledger</h1>
                                     <p className="text-sm text-gray-500">Transparent Tracking, Effortless Settlement</p>
                                 </div>
                             </div>

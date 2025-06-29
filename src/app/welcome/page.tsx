@@ -112,7 +112,7 @@ export default function WelcomePage() {
                 <div className="mx-auto mb-4">
                     <Logo />
                 </div>
-                <CardTitle className="font-headline text-3xl">Welcome to KhanaConnect</CardTitle>
+                <CardTitle className="font-headline text-3xl">Welcome to Mess Ledger</CardTitle>
                 <CardDescription>
                     You're not part of a mess yet, <span className="font-semibold text-foreground">{userProfile?.displayName || 'Friend'}</span>!
                     <br/>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -84,7 +85,7 @@ export default function JoinMessPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">KhanaConnect</CardTitle>
+            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
             <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>
