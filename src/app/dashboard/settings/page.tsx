@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,14 +17,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2 } from "lucide-react";
+import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from '@/hooks/use-toast';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { getMessById, getUserProfile, type UserProfile as AppUserProfile } from '@/services/messService';
+import { getMessById, getUserProfile, updateMealSettings, type UserProfile as AppUserProfile, type MealSettings } from '@/services/messService';
 
 const members = [
   { id: 2, name: "Karim Khan", role: "member", avatar: "https://placehold.co/40x40.png" },
@@ -37,6 +37,7 @@ interface MessData {
     id: string;
     name: string;
     inviteCode?: string;
+    mealSettings?: MealSettings;
 }
 
 export default function SettingsPage() {
@@ -46,6 +47,12 @@ export default function SettingsPage() {
     const [userProfile, setUserProfile] = useState<AppUserProfile | null>(null);
     const [messData, setMessData] = useState<MessData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [mealSettings, setMealSettings] = useState<MealSettings>({
+        breakfastCutoff: "02:00",
+        lunchCutoff: "13:00",
+        dinnerCutoff: "20:00",
+    });
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -56,6 +63,9 @@ export default function SettingsPage() {
                         getMessById(profile.messId).then(mess => {
                             if (mess) {
                                setMessData(mess as MessData);
+                               if (mess.mealSettings) {
+                                   setMealSettings(mess.mealSettings);
+                               }
                             }
                             setLoading(false);
                         });
@@ -69,6 +79,27 @@ export default function SettingsPage() {
         });
         return () => unsubscribe();
     }, [router]);
+    
+    const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { id, value } = e.target;
+        const key = id.replace('-cutoff', 'Cutoff') as keyof MealSettings;
+        setMealSettings(prev => ({...prev, [key]: value }));
+    }
+
+    const handleSaveMealSettings = async () => {
+        if (!messData?.id) return;
+        setIsSaving(true);
+        try {
+            await updateMealSettings(messData.id, mealSettings);
+            toast({ title: "Success!", description: "Meal settings have been updated." });
+        } catch (error) {
+            console.error("Failed to save meal settings:", error);
+            toast({ title: "Error", description: "Could not save settings. Please try again.", variant: "destructive" });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
 
     const handleCopy = () => {
         if (!messData?.inviteCode) return;
@@ -117,22 +148,28 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                 <CardTitle className="font-headline">Meal Settings</CardTitle>
-                <CardDescription>Set the cut-off times for daily meals.</CardDescription>
+                <CardDescription>Set the cut-off times for daily meals. Members must toggle their meals before these times.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
-                    <Label htmlFor="breakfast-cutoff">Breakfast Cut-off</Label>
-                    <Input id="breakfast-cutoff" type="time" defaultValue="02:00" />
+                    <Label htmlFor="breakfastCutoff">Breakfast Cut-off</Label>
+                    <Input id="breakfastCutoff" type="time" value={mealSettings.breakfastCutoff} onChange={handleSettingsChange} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="lunch-cutoff">Lunch Cut-off</Label>
-                    <Input id="lunch-cutoff" type="time" defaultValue="13:00" />
+                    <Label htmlFor="lunchCutoff">Lunch Cut-off</Label>
+                    <Input id="lunchCutoff" type="time" value={mealSettings.lunchCutoff} onChange={handleSettingsChange} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="dinner-cutoff">Dinner Cut-off</Label>
-                    <Input id="dinner-cutoff" type="time" defaultValue="20:00" />
+                    <Label htmlFor="dinnerCutoff">Dinner Cut-off</Label>
+                    <Input id="dinnerCutoff" type="time" value={mealSettings.dinnerCutoff} onChange={handleSettingsChange} />
                 </div>
                 </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                    <Button onClick={handleSaveMealSettings} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Meal Settings
+                    </Button>
+                </CardFooter>
             </Card>
 
             <Card>

@@ -59,6 +59,18 @@ export interface Deposit {
     userId: string;
 }
 
+export interface MealSettings {
+    breakfastCutoff: string; // "HH:mm"
+    lunchCutoff: string;
+    dinnerCutoff: string;
+}
+
+export interface MealStatus {
+    breakfast: boolean;
+    lunch: boolean;
+    dinner: boolean;
+}
+
 
 // Create or update user in Firestore
 export const upsertUser = async (user: FirebaseUser) => {
@@ -79,24 +91,29 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
 
   const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   const batch = writeBatch(db);
-
-  // 1. Create the mess document
   const messRef = doc(collection(db, 'messes'));
+
+  // 1. Create the mess document with default meal settings
   batch.set(messRef, {
     name: messName,
     managerId: user.uid,
     createdAt: serverTimestamp(),
     inviteCode: inviteCode,
+    mealSettings: {
+        breakfastCutoff: "02:00",
+        lunchCutoff: "13:00",
+        dinnerCutoff: "20:00",
+    }
   });
 
-  // 2. Update the user's profile with the new messId and role
+  // 2. Update the user's profile
   const userRef = doc(db, 'users', user.uid);
   batch.update(userRef, {
     messId: messRef.id,
     role: 'manager',
   });
 
-  // 3. Add user as the first member (manager) of the mess
+  // 3. Add user as the first member
   const memberRef = doc(db, 'messes', messRef.id, 'members', user.uid);
   batch.set(memberRef, {
       name: user.displayName,
@@ -104,6 +121,15 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
       role: 'manager',
       balance: 0,
       meals: 0,
+  });
+  
+  // 4. Create today's meal doc for the new manager
+  const today = new Date().toISOString().split('T')[0];
+  const mealDocRef = doc(db, 'messes', messRef.id, 'members', user.uid, 'meals', today);
+  batch.set(mealDocRef, {
+      breakfast: true,
+      lunch: true,
+      dinner: true,
   });
 
   await batch.commit();
@@ -146,6 +172,15 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
         balance: 0,
         meals: 0,
     });
+    
+    // Create today's meal doc for the joining member
+    const today = new Date().toISOString().split('T')[0];
+    const mealDocRef = doc(db, 'messes', messId, 'members', user.uid, 'meals', today);
+    batch.set(mealDocRef, {
+        breakfast: true,
+        lunch: true,
+        dinner: true,
+    });
 
     await batch.commit();
     return messId;
@@ -166,7 +201,12 @@ export const getMessById = async (messId: string) => {
     const messRef = doc(db, 'messes', messId);
     const messSnap = await getDoc(messRef);
     if (messSnap.exists()) {
-        return { id: messSnap.id, ...messSnap.data() };
+        const data = messSnap.data();
+        return { 
+            id: messSnap.id, 
+            ...data,
+            mealSettings: data.mealSettings as MealSettings | undefined
+        };
     }
     return null;
 }
@@ -354,3 +394,37 @@ export const rejectExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
     await deleteDoc(doc(db, 'messes', messId, 'pendingExpenses', expenseId));
 };
+
+
+// ---- Meal Management ----
+
+export const updateMealSettings = async (messId: string, settings: MealSettings) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const messRef = doc(db, 'messes', messId);
+    await updateDoc(messRef, { mealSettings: settings });
+}
+
+export const getTodaysMealStatus = async (messId: string, userId: string): Promise<MealStatus> => {
+    if (!db) throw new Error("Firestore not initialized");
+    const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
+    const mealDocSnap = await getDoc(mealDocRef);
+
+    if (mealDocSnap.exists()) {
+        return mealDocSnap.data() as MealStatus;
+    } else {
+        // Doc doesn't exist for today, create it with defaults and return them
+        const defaultStatus: MealStatus = { breakfast: true, lunch: true, dinner: true };
+        await setDoc(mealDocRef, defaultStatus);
+        return defaultStatus;
+    }
+}
+
+export const updateMealForToday = async (messId: string, userId:string, meal: keyof MealStatus, status: boolean) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const todayStr = new Date().toISOString().split('T')[0];
+    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
+    
+    // Use set with merge to create the doc if it doesn't exist, or update the specific field if it does.
+    await setDoc(mealDocRef, { [meal]: status }, { merge: true });
+}
