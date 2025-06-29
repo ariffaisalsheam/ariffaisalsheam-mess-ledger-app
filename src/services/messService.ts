@@ -152,28 +152,18 @@ export const createNotification = async (messId: string, notificationData: Omit<
 export const onNotificationsChange = (messId: string, userId: string, role: 'manager' | 'member' | undefined, callback: (notifications: Notification[]) => void) => {
     if (!db || !role) return () => {};
 
-    let q: any;
+    let q;
+    const notificationsRef = collection(db, 'messes', messId, 'notifications');
+
     if (role === 'manager') {
-        q = query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId]));
+        q = query(notificationsRef, where('userId', 'in', ['manager', userId]));
     } else {
-        q = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
+        q = query(notificationsRef, where('userId', '==', userId));
     }
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(query(q, orderBy('timestamp', 'desc')), (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-        
-        const sorted = notifications.sort((a,b) => {
-            if (!a.timestamp || !b.timestamp) return 0;
-            return b.timestamp.toMillis() - a.timestamp.toMillis();
-        });
-
-        if (role === 'manager') {
-            const uniqueNotifications = Array.from(new Map(sorted.map(n => [n.id, n])).values());
-            callback(uniqueNotifications);
-        } else {
-            callback(sorted);
-        }
-
+        callback(notifications);
     }, (error) => console.error("Error on notifications snapshot:", error));
 
     return unsubscribe;
@@ -771,7 +761,8 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
         if (type === 'new') {
             const newBalance = (memberDoc.data().balance || 0) + pendingDeposit.amount;
             const newDepositRef = doc(collection(db, 'messes', messId, 'deposits'));
-            transaction.set(newDepositRef, { ...pendingDeposit, status: 'approved', approvedAt: serverTimestamp(), type: undefined, originalId: undefined, originalAmount: undefined });
+            const { id, type: reqType, originalId, originalAmount, status, ...finalDepositData } = pendingDeposit;
+            transaction.set(newDepositRef, { ...finalDepositData, status: 'approved', approvedAt: serverTimestamp() });
             transaction.update(memberRef, { balance: newBalance });
         } else if (type === 'edit') {
             const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
@@ -818,7 +809,8 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
     await runTransaction(db, async (transaction) => {
         if (type === 'new') {
             const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
-            transaction.set(newExpenseRef, { ...pendingExpense, status: 'approved', approvedAt: serverTimestamp(), type: undefined, originalId: undefined, originalData: undefined });
+            const { id, type: reqType, originalId, originalData, status, ...finalExpenseData } = pendingExpense;
+            transaction.set(newExpenseRef, { ...finalExpenseData, status: 'approved', approvedAt: serverTimestamp() });
         } else if (type === 'edit') {
             const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
             transaction.update(originalExpenseRef, { amount: pendingExpense.amount, description: pendingExpense.description });
@@ -1054,16 +1046,13 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
     const querySnapshot = await getFirestoreDocs(q);
     
     const ledger = querySnapshot.docs.map(doc => ({
         date: doc.id,
         ...(doc.data() as MealStatus)
     }));
-
-    // Sort descending by date
-    ledger.sort((a, b) => b.date.localeCompare(a.date));
 
     return ledger;
 }
@@ -1378,3 +1367,5 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
         memberReports,
     };
 };
+
+    
