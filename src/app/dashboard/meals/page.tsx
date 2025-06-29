@@ -415,7 +415,9 @@ export default function MealsPage() {
         <Info className="h-4 w-4" />
         <AlertTitle className='font-headline'>Meal Ledger</AlertTitle>
         <AlertDescription>
-          Your personal meal counts are timestamped in your Meal Ledger. If you miss a cut-off time, please contact your manager to override your meal status on the 'Members' page.
+          {mealSettings?.isCutoffEnabled
+            ? "Your personal meal counts are timestamped in your Meal Ledger. If you miss a cut-off time, please contact your manager to override your meal status on the 'Members' page."
+            : "Your personal meal counts are timestamped in your Meal Ledger. Cut-off times are currently disabled by the manager, so you can adjust your meals for today at any time."}
         </AlertDescription>
       </Alert>
     </div>
