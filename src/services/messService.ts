@@ -130,7 +130,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     };
     
     // Listener for personal notifications
-    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
+    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId), limit(20));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         const personalNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
         allNotifications = [...allNotifications.filter(n => n.userId !== userId), ...personalNotifications];
@@ -140,7 +140,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     // Listener for manager notifications if applicable
     if (role === 'manager') {
-        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
+        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'), limit(20));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             const managerNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
             allNotifications = [...allNotifications.filter(n => n.userId !== 'manager'), ...managerNotifications];
@@ -441,25 +441,31 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
 export const getDepositsForUser = async (messId: string, userId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'deposits');
-    const q = query(depositsCol, where("userId", "==", userId), orderBy("date", "desc"));
+    const q = query(depositsCol, where("userId", "==", userId));
     const snapshot = await getFirestoreDocs(q);
-    return snapshot.docs.map(doc => {
+    const deposits = snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Deposit;
     });
+    // Sort by date descending
+    deposits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return deposits;
 };
 
 export const getExpensesForUser = async (messId: string, userId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
-    const q = query(expensesCol, where("userId", "==", userId), orderBy("date", "desc"));
+    const q = query(expensesCol, where("userId", "==", userId));
     const snapshot = await getFirestoreDocs(q);
-    return snapshot.docs.map(doc => {
+    const expenses = snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Expense;
     });
+    // Sort by date descending
+    expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return expenses;
 };
 
 export const updateDeposit = async (messId: string, depositId: string, userId: string, oldAmount: number, newAmount: number) => {
@@ -836,7 +842,7 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         }
         
         const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0 };
-        const oldMealTotalForDate = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0);
+        const oldMealTotalForDate = (oldMealData.isSetByUser ? (oldMealData.breakfast || 0) : 0) + (oldMealData.isSetByUser ? (oldMealData.lunch || 0) : 0) + (oldMealData.isSetByUser ? (oldMealData.dinner || 0) : 0);
 
         const newMealTotalForDate = (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0);
         
@@ -1074,3 +1080,4 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         }
     });
 };
+
