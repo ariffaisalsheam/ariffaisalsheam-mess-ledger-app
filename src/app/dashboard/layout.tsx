@@ -32,6 +32,8 @@ import {
   Clock,
   ClipboardList,
   X,
+  BookOpen,
+  Receipt,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +155,8 @@ export default function DashboardLayout({
         switch(page) {
             case 'meals': title = 'Manage Your Meals'; break;
             case 'members': title = 'Mess Members'; break;
+            case 'ledger': title = 'Meal Ledger'; break;
+            case 'transactions': title = 'Transactions'; break;
             case 'reports': title = 'Monthly Reports'; break;
             case 'settings': title = 'Settings'; break;
             case 'review': title = 'Review Queue'; break;
@@ -188,6 +192,8 @@ export default function DashboardLayout({
     { href: "/dashboard", icon: <Home className="h-4 w-4" />, label: "Dashboard" },
     { href: "/dashboard/meals", icon: <Utensils className="h-4 w-4" />, label: "Meals" },
     { href: "/dashboard/members", icon: <Users className="h-4 w-4" />, label: "Members" },
+    { href: "/dashboard/ledger", icon: <BookOpen className="h-4 w-4" />, label: "Meal Ledger" },
+    { href: "/dashboard/transactions", icon: <Receipt className="h-4 w-4" />, label: "Transactions" },
     { href: "/dashboard/reports", icon: <ClipboardList className="h-4 w-4" />, label: "Reports" },
     { href: "/dashboard/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
   ];

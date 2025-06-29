@@ -16,8 +16,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { type Member, type UserProfile } from "@/services/messService";
-import { MealLedgerDialog } from './meal-ledger-dialog';
-import { TransactionHistoryDialog } from "./transaction-history-dialog";
 
 
 interface MemberListProps {
@@ -28,20 +26,6 @@ interface MemberListProps {
 }
 
 export function MemberList({ members, messId, currentUserProfile, onUpdate }: MemberListProps) {
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [isTransactionsOpen, setIsTransactionsOpen] = useState(false);
-
-  const handleViewLedger = (member: Member) => {
-    setSelectedMember(member);
-    setIsLedgerOpen(true);
-  };
-  
-  const handleViewTransactions = (member: Member) => {
-    setSelectedMember(member);
-    setIsTransactionsOpen(true);
-  };
-
   const isManager = currentUserProfile.role === 'manager';
 
   return (
@@ -95,8 +79,6 @@ export function MemberList({ members, messId, currentUserProfile, onUpdate }: Me
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem>View Profile</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleViewLedger(member)}>View Meal Ledger</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleViewTransactions(member)}>View Transactions</DropdownMenuItem>
                         {isManager && member.id !== currentUserProfile.uid && (
                             <>
                                 <DropdownMenuSeparator />
@@ -114,28 +96,6 @@ export function MemberList({ members, messId, currentUserProfile, onUpdate }: Me
           </Table>
         </CardContent>
       </Card>
-      {selectedMember && (
-        <MealLedgerDialog 
-          isOpen={isLedgerOpen}
-          setIsOpen={setIsLedgerOpen}
-          messId={messId}
-          memberId={selectedMember.id}
-          memberName={selectedMember.name}
-        />
-      )}
-      {selectedMember && (
-        <TransactionHistoryDialog 
-          isOpen={isTransactionsOpen}
-          setIsOpen={setIsTransactionsOpen}
-          member={selectedMember}
-          messId={messId}
-          currentUserProfile={currentUserProfile}
-          onSuccess={() => {
-            setIsTransactionsOpen(false);
-            onUpdate();
-          }}
-        />
-      )}
     </>
   );
 }
