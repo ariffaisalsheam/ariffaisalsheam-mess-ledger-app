@@ -33,6 +33,7 @@ import {
     transferManagerRole,
     removeMemberFromMess,
     updateUserProfile,
+    updateMessName,
     type UserProfile as AppUserProfile, 
     type MealSettings,
     type Member
@@ -60,6 +61,8 @@ export default function SettingsPage() {
     
     // State for mess settings
     const [messData, setMessData] = useState<MessData | null>(null);
+    const [messName, setMessName] = useState('');
+    const [isSavingMessName, setIsSavingMessName] = useState(false);
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -91,6 +94,7 @@ export default function SettingsPage() {
                     ]).then(([mess, fetchedMembers]) => {
                         if (mess) {
                             setMessData(mess as MessData);
+                            setMessName(mess.name);
                             if (mess.mealSettings) {
                                 setMealSettings(prev => ({...prev, ...mess.mealSettings}));
                             }
@@ -134,6 +138,23 @@ export default function SettingsPage() {
             toast({ title: "Error", description: "Could not save settings. Please try again.", variant: "destructive" });
         } finally {
             setIsSaving(false);
+        }
+    }
+    
+    const handleSaveMessName = async () => {
+        if (!messData?.id || !messName.trim()) return;
+        if (messName.trim() === messData.name) return; // No change
+    
+        setIsSavingMessName(true);
+        try {
+            await updateMessName(messData.id, messName.trim());
+            toast({ title: "Success!", description: "Mess name has been updated." });
+            router.refresh(); // This will re-run the layout and get the new name
+        } catch (error) {
+            console.error("Failed to save mess name:", error);
+            toast({ title: "Error", description: "Could not save mess name.", variant: "destructive" });
+        } finally {
+            setIsSavingMessName(false);
         }
     }
 
@@ -261,23 +282,29 @@ export default function SettingsPage() {
         <>
             <Card>
                 <CardHeader>
-                <CardTitle className="font-headline">Mess Information</CardTitle>
-                <CardDescription>Update your mess's general details and invite codes.</CardDescription>
+                    <CardTitle className="font-headline">Mess Information</CardTitle>
+                    <CardDescription>Update your mess's general details and invite codes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                <div className="space-y-2">
-                    <Label htmlFor="mess-name">Mess Name</Label>
-                    <Input id="mess-name" defaultValue={messData?.name || ''} />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="invite-code">Mess Invite Code</Label>
-                    <div className="flex gap-2">
-                        <Input id="invite-code" readOnly value={messData?.inviteCode || 'N/A'} />
-                        <Button variant="outline" size="icon" onClick={handleCopy} disabled={!messData?.inviteCode}><Copy className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon"><Share2 className="h-4 w-4" /></Button>
+                    <div className="space-y-2">
+                        <Label htmlFor="mess-name">Mess Name</Label>
+                        <Input id="mess-name" value={messName} onChange={(e) => setMessName(e.target.value)} />
                     </div>
-                </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="invite-code">Mess Invite Code</Label>
+                        <div className="flex gap-2">
+                            <Input id="invite-code" readOnly value={messData?.inviteCode || 'N/A'} />
+                            <Button variant="outline" size="icon" onClick={handleCopy} disabled={!messData?.inviteCode}><Copy className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon"><Share2 className="h-4 w-4" /></Button>
+                        </div>
+                    </div>
                 </CardContent>
+                <CardFooter className="border-t pt-6">
+                    <Button onClick={handleSaveMessName} disabled={isSavingMessName}>
+                        {isSavingMessName ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        Save Mess Name
+                    </Button>
+                </CardFooter>
             </Card>
             
             <Card>

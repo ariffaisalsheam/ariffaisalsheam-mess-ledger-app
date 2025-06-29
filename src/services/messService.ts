@@ -460,6 +460,14 @@ export const getMessById = async (messId: string) => {
     return null;
 }
 
+export const updateMessName = async (messId: string, newName: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    if (!newName.trim()) throw new Error("Mess name cannot be empty.");
+    
+    const messRef = doc(db, 'messes', messId);
+    await updateDoc(messRef, { name: newName.trim() });
+};
+
 export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
     if (!db) throw new Error("Firestore not initialized");
 
