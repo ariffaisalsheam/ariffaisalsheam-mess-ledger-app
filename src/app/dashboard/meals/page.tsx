@@ -109,7 +109,15 @@ export default function MealsPage() {
         fetchMealData();
         fetchHistoryData();
         getMessById(userProfile.messId).then(messData => {
-            setMealSettings(messData?.mealSettings || null);
+            const defaultSettings: MealSettings = {
+                breakfastCutoff: "02:00",
+                lunchCutoff: "13:00",
+                dinnerCutoff: "20:00",
+                isBreakfastOn: true,
+                isLunchOn: true,
+                isDinnerOn: true,
+            };
+            setMealSettings({ ...defaultSettings, ...(messData?.mealSettings || {}) });
         });
     }
   }, [user, userProfile, fetchMealData, fetchHistoryData]);

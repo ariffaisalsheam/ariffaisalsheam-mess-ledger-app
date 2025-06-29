@@ -79,7 +79,7 @@ export default function SettingsPage() {
                     if (mess) {
                         setMessData(mess as MessData);
                         if (mess.mealSettings) {
-                            setMealSettings(mess.mealSettings);
+                            setMealSettings(prev => ({...prev, ...mess.mealSettings}));
                         }
                     }
                     setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
@@ -369,5 +369,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
