@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -25,30 +25,72 @@ import {
   Wallet,
   CheckSquare,
   Bell,
+  Loader2,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { getUserProfile, getMessById } from "@/services/messService";
+import type { UserProfile } from "@/services/messService";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = { role: "manager", name: "Rahim Doe", email: "rahim@example.com" };
-  const pendingReviews = 2;
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [messName, setMessName] = useState("Loading...");
+  const [pageTitle, setPageTitle] = useState("Dashboard");
+  const [loading, setLoading] = useState(true);
+  const pendingReviews = 2; // This remains mock data for now
 
   const pathname = usePathname();
-  const [messName, setMessName] = useState("MessX");
-  const [pageTitle, setPageTitle] = useState("Dashboard");
+  const router = useRouter();
 
   useEffect(() => {
-    const name = localStorage.getItem("messName");
-    if (name) {
-      setMessName(name);
+    if (!auth) {
+      router.push('/login');
+      return;
     }
-  }, []);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setAuthUser(user);
+      } else {
+        router.push("/login");
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
+  useEffect(() => {
+    if (authUser) {
+      getUserProfile(authUser.uid).then(profile => {
+        if (profile) {
+          setUserProfile(profile);
+          if (profile.messId) {
+            getMessById(profile.messId).then(mess => {
+              if (mess) {
+                setMessName(mess.name as string);
+              } else {
+                setMessName("No Mess");
+              }
+              setLoading(false);
+            });
+          } else {
+            router.push('/welcome');
+          }
+        } else {
+          console.error("User profile not found in Firestore.");
+          auth?.signOut();
+          router.push('/login');
+        }
+      });
+    }
+  }, [authUser, router]);
+  
   useEffect(() => {
     let title: string;
     if (pathname === '/dashboard') {
@@ -66,6 +108,12 @@ export default function DashboardLayout({
     setPageTitle(title);
   }, [pathname]);
 
+  const handleLogout = async () => {
+    if (auth) {
+      await auth.signOut();
+      router.push('/login');
+    }
+  };
 
   const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => {
     const isActive = pathname === href;
@@ -93,6 +141,14 @@ export default function DashboardLayout({
     { href: "/dashboard/review", icon: <CheckSquare className="h-4 w-4" />, label: "Review", badge: pendingReviews },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-card md:block">
@@ -106,7 +162,7 @@ export default function DashboardLayout({
           <div className="flex-1">
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
-              {user.role === 'manager' && managerNavItems.map(item => (
+              {userProfile?.role === 'manager' && managerNavItems.map(item => (
                 <NavLink key={item.href} href={item.href}>
                   {item.icon}{item.label}
                   {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">{item.badge}</Badge>}
@@ -152,7 +208,7 @@ export default function DashboardLayout({
                   <span className="sr-only">{messName}</span>
                 </Link>
                 {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
-                 {user.role === 'manager' && managerNavItems.map(item => (
+                 {userProfile?.role === 'manager' && managerNavItems.map(item => (
                     <NavLink key={item.href} href={item.href}>
                         {item.icon}{item.label}
                         {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">{item.badge}</Badge>}
@@ -172,8 +228,8 @@ export default function DashboardLayout({
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
                 <Avatar className="h-8 w-8">
-                    <AvatarImage src="https://placehold.co/40x40.png" alt="@shadcn" data-ai-hint="man portrait"/>
-                    <AvatarFallback>RD</AvatarFallback>
+                    <AvatarImage src={userProfile?.photoURL ?? "https://placehold.co/40x40.png"} alt={userProfile?.displayName ?? "User"} data-ai-hint="man portrait"/>
+                    <AvatarFallback>{userProfile?.displayName?.substring(0, 2).toUpperCase() ?? "U"}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Toggle user menu</span>
               </Button>
@@ -181,16 +237,16 @@ export default function DashboardLayout({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">{user.name}</p>
-                    <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
+                    <p className="text-sm font-medium leading-none">{userProfile?.displayName}</p>
+                    <p className="text-xs leading-none text-muted-foreground">{userProfile?.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>Profile</DropdownMenuItem>
               <DropdownMenuItem>Support</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link href="/login"><LogOut className="mr-2 h-4 w-4"/>Logout</Link>
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+                <LogOut className="mr-2 h-4 w-4"/>Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -14,7 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import type { Member } from "@/services/mess";
+import type { Member } from "@/services/messService";
 
 export function MemberList({ members }: { members: Member[] }) {
   return (
@@ -45,7 +45,7 @@ export function MemberList({ members }: { members: Member[] }) {
                   <div className="flex items-center gap-3">
                     <Avatar>
                       <AvatarImage src={member.avatar} alt={member.name} data-ai-hint="person portrait" />
-                      <AvatarFallback>{member.name.substring(0, 2)}</AvatarFallback>
+                      <AvatarFallback>{member.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
                       {member.name}

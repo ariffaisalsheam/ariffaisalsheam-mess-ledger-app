@@ -10,6 +10,7 @@ import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { upsertUser } from "@/services/messService";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,7 +28,8 @@ export default function LoginPage() {
     }
     const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await upsertUser(result.user);
       router.push("/welcome");
     } catch (error) {
       console.error("Error signing in with Google: ", error);

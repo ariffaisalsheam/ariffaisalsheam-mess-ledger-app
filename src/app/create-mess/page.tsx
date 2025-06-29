@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,19 +8,67 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { createMess } from "@/services/messService";
+import { useToast } from "@/hooks/use-toast";
 
 export default function CreateMessPage() {
   const [messName, setMessName] = useState("");
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!auth) {
+      router.push('/login');
+      return;
+    }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        router.push("/login");
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (messName.trim()) {
-      localStorage.setItem("messName", messName.trim());
-      router.push("/dashboard");
+    if (messName.trim() && user) {
+      setSubmitting(true);
+      try {
+        await createMess(messName.trim(), user);
+        toast({
+          title: "Success!",
+          description: `Your mess "${messName.trim()}" has been created.`,
+        });
+        router.push("/dashboard");
+      } catch (error) {
+        console.error("Failed to create mess:", error);
+        toast({
+          title: "Error",
+          description: "Could not create your mess. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
+  
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
@@ -51,7 +99,8 @@ export default function CreateMessPage() {
                 onChange={(e) => setMessName(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={!messName.trim()}>
+            <Button type="submit" className="w-full" disabled={!messName.trim() || submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create and Go to Dashboard
             </Button>
           </form>
