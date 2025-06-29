@@ -2,6 +2,7 @@
 
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -77,6 +78,11 @@ export interface MealStatus {
 
 export interface MealLedgerEntry extends MealStatus {
     date: string; // "YYYY-MM-DD"
+}
+
+export interface MessMealHistoryEntry extends MealLedgerEntry {
+    memberName: string;
+    memberId: string;
 }
 
 
@@ -558,6 +564,39 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
 
     return ledger;
 }
+
+export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const members = await getMembersOfMess(messId);
+    if (!members.length) {
+        return [];
+    }
+
+    const allHistoryPromises = members.map(async (member) => {
+        const memberLedger = await getMealLedgerForUser(messId, member.id, days);
+        return memberLedger.map(entry => ({
+            ...entry,
+            memberId: member.id,
+            memberName: member.name,
+        }));
+    });
+
+    const nestedHistory = await Promise.all(allHistoryPromises);
+    const flatHistory = nestedHistory.flat();
+    
+    // Sort by date (most recent first), then by member name
+    flatHistory.sort((a, b) => {
+        if (a.date > b.date) return -1;
+        if (a.date < b.date) return 1;
+        if (a.memberName < b.memberName) return -1;
+        if (a.memberName > b.memberName) return 1;
+        return 0;
+    });
+
+    return flatHistory;
+}
+
 
 export const getTodaysMealStatusesForMess = async (messId: string): Promise<Record<string, MealStatus>> => {
     if (!db) throw new Error("Firestore not initialized");

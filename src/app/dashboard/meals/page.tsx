@@ -7,7 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info, Loader2 } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Info, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -16,18 +18,23 @@ import {
     getTodaysMealStatus, 
     updateMealForToday, 
     getMessById,
+    getMealHistoryForMess,
     type MealStatus,
     type MealSettings,
-    type UserProfile
+    type UserProfile,
+    type MessMealHistoryEntry
 } from '@/services/messService';
 import { useToast } from '@/hooks/use-toast';
+import { format, parseISO } from 'date-fns';
 
 export default function MealsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [meals, setMeals] = useState<MealStatus | null>(null);
   const [mealSettings, setMealSettings] = useState<MealSettings | null>(null);
+  const [mealHistory, setMealHistory] = useState<MessMealHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [submitting, setSubmitting] = useState<Partial<Record<keyof MealStatus, boolean>>>({});
   const router = useRouter();
   const { toast } = useToast();
@@ -47,17 +54,24 @@ export default function MealsPage() {
   useEffect(() => {
     if (user && userProfile?.messId) {
       setLoading(true);
+      setLoadingHistory(true);
+      
+      const messId = userProfile.messId;
+
       Promise.all([
-        getTodaysMealStatus(userProfile.messId, user.uid),
-        getMessById(userProfile.messId)
-      ]).then(([mealStatus, messData]) => {
+        getTodaysMealStatus(messId, user.uid),
+        getMessById(messId),
+        getMealHistoryForMess(messId, 7)
+      ]).then(([mealStatus, messData, historyData]) => {
         setMeals(mealStatus);
         setMealSettings(messData?.mealSettings || null);
+        setMealHistory(historyData);
       }).catch(err => {
         console.error("Failed to fetch meal data", err);
         toast({ title: "Error", description: "Could not load your meal data.", variant: "destructive" });
       }).finally(() => {
         setLoading(false);
+        setLoadingHistory(false);
       });
     }
   }, [user, userProfile, toast]);
@@ -68,14 +82,12 @@ export default function MealsPage() {
     setSubmitting(prev => ({ ...prev, [meal]: true }));
     const newStatus = !meals[meal];
 
-    // Optimistic UI update
     setMeals(prev => prev ? { ...prev, [meal]: newStatus } : null);
 
     try {
       await updateMealForToday(userProfile.messId, user.uid, meal, newStatus);
     } catch (error) {
       console.error("Failed to update meal status:", error);
-      // Revert UI on error
       setMeals(prev => prev ? { ...prev, [meal]: !newStatus } : null);
       toast({
         title: "Update Failed",
@@ -117,7 +129,13 @@ export default function MealsPage() {
     };
   }, [mealSettings]);
   
-  if (loading || !meals) {
+  const MealIcon = ({ status }: { status: boolean }) => {
+    return status 
+      ? <CheckCircle className="h-5 w-5 text-green-500" /> 
+      : <XCircle className="h-5 w-5 text-red-500" />;
+  };
+  
+  if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -134,43 +152,43 @@ export default function MealsPage() {
             Turn your meals ON or OFF for today. Toggles lock after the cut-off time.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className={`flex items-center justify-between p-4 rounded-lg ${isBreakfastLocked ? 'bg-muted/50' : ''}`}>
+        <CardContent className="space-y-4">
+          <div className={`flex items-center justify-between p-3 rounded-lg ${isBreakfastLocked ? 'bg-muted/50' : ''}`}>
             <div>
-              <Label htmlFor="breakfast-mode" className="text-lg font-medium">Breakfast</Label>
+              <Label htmlFor="breakfast-mode" className="text-base font-medium">Breakfast</Label>
               <p className="text-sm text-muted-foreground">Cut-off time: {breakfastCutoffTime}. {isBreakfastLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
             <Switch
               id="breakfast-mode"
-              checked={meals.breakfast}
+              checked={meals?.breakfast ?? false}
               onCheckedChange={() => handleMealToggle('breakfast')}
               disabled={isBreakfastLocked || submitting.breakfast}
               aria-readonly={isBreakfastLocked}
             />
           </div>
           <Separator />
-          <div className={`flex items-center justify-between p-4 rounded-lg ${isLunchLocked ? 'bg-muted/50' : ''}`}>
+          <div className={`flex items-center justify-between p-3 rounded-lg ${isLunchLocked ? 'bg-muted/50' : ''}`}>
             <div>
-                <Label htmlFor="lunch-mode" className="text-lg font-medium">Lunch</Label>
+                <Label htmlFor="lunch-mode" className="text-base font-medium">Lunch</Label>
                 <p className="text-sm text-muted-foreground">Cut-off time: {lunchCutoffTime}. {isLunchLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
             <Switch
               id="lunch-mode"
-              checked={meals.lunch}
+              checked={meals?.lunch ?? false}
               onCheckedChange={() => handleMealToggle('lunch')}
               disabled={isLunchLocked || submitting.lunch}
               aria-readonly={isLunchLocked}
             />
           </div>
           <Separator />
-          <div className={`flex items-center justify-between p-4 rounded-lg ${isDinnerLocked ? 'bg-muted/50' : ''}`}>
+          <div className={`flex items-center justify-between p-3 rounded-lg ${isDinnerLocked ? 'bg-muted/50' : ''}`}>
             <div>
-                <Label htmlFor="dinner-mode" className="text-lg font-medium">Dinner</Label>
+                <Label htmlFor="dinner-mode" className="text-base font-medium">Dinner</Label>
                 <p className="text-sm text-muted-foreground">Cut-off time: {dinnerCutoffTime}. {isDinnerLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
             <Switch
               id="dinner-mode"
-              checked={meals.dinner}
+              checked={meals?.dinner ?? false}
               onCheckedChange={() => handleMealToggle('dinner')}
               disabled={isDinnerLocked || submitting.dinner}
               aria-readonly={isDinnerLocked}
@@ -178,11 +196,55 @@ export default function MealsPage() {
           </div>
         </CardContent>
       </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline">All Meal Records</CardTitle>
+            <CardDescription>Meal records for all members for the last 7 days.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loadingHistory ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : (
+            <ScrollArea className="h-96">
+                <Table>
+                    <TableHeader className="sticky top-0 bg-card">
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Member</TableHead>
+                            <TableHead className="text-center">Breakfast</TableHead>
+                            <TableHead className="text-center">Lunch</TableHead>
+                            <TableHead className="text-center">Dinner</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {mealHistory.length > 0 ? mealHistory.map((entry, index) => (
+                            <TableRow key={`${entry.date}-${entry.memberId}-${index}`}>
+                                <TableCell className="font-medium">{format(parseISO(entry.date), 'EEE, MMM d')}</TableCell>
+                                <TableCell>{entry.memberName}</TableCell>
+                                <TableCell className="text-center"><MealIcon status={entry.breakfast} /></TableCell>
+                                <TableCell className="text-center"><MealIcon status={entry.lunch} /></TableCell>
+                                <TableCell className="text-center"><MealIcon status={entry.dinner} /></TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center text-muted-foreground h-24">No meal records found.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+      
       <Alert>
         <Info className="h-4 w-4" />
         <AlertTitle className='font-headline'>Meal Ledger</AlertTitle>
         <AlertDescription>
-          All your meal ON/OFF actions are automatically saved and timestamped in your personal Meal Ledger, which is visible to you and the mess manager. If you miss a cut-off time, please contact your manager for assistance.
+          Your personal meal toggles are timestamped in your Meal Ledger. If you miss a cut-off time, please contact your manager to override your meal status on the 'Members' page.
         </AlertDescription>
       </Alert>
     </div>
