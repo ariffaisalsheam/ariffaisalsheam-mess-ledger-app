@@ -148,6 +148,21 @@ export default function MealsPage() {
   }, [user, userProfile, fetchMealData, fetchHistoryData]);
   
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMealData();
+        fetchHistoryData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchMealData, fetchHistoryData]);
+
+  useEffect(() => {
     const grouped = mealHistory.reduce((acc, entry) => {
         const date = entry.date;
         if (!acc[date]) {
