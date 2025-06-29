@@ -10,7 +10,7 @@ export default function SplashPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push("/login");
-    }, 3000); // 3-second delay
+    }, 5000); // 5-second delay
 
     return () => clearTimeout(timer); // Cleanup the timer
   }, [router]);
@@ -23,7 +23,7 @@ export default function SplashPage() {
           Mess Ledger
         </h1>
         <p className="text-lg font-semibold text-muted-foreground">
-          Transparent Tracking, Effortless Settlement.
+          Transparent Tracking, Effortless Settlement
         </p>
       </div>
       <div className="absolute bottom-4 text-center text-sm text-muted-foreground">
