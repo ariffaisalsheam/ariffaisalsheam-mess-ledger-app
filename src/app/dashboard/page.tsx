@@ -96,10 +96,10 @@ export default function DashboardPage() {
     );
   }
 
-  const userBalance = memberDetails?.balance ?? 0;
   const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
   const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
   const mealRate = totalMessMeals > 0 ? totalExpenses / totalMessMeals : 0;
+  const totalMessBalance = totalDeposits - totalExpenses;
 
   return (
     <>
@@ -125,14 +125,14 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Your Balance</CardTitle>
-              <span className={`text-lg ${userBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>৳</span>
+              <CardTitle className="text-sm font-medium">Total Mess Balance</CardTitle>
+              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>৳</span>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                  {userBalance >= 0 ? '+' : '-'}৳{Math.abs(userBalance).toFixed(2)}
+              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                  {totalMessBalance >= 0 ? '+' : '-'}৳{Math.abs(totalMessBalance).toFixed(2)}
               </div>
-              <p className="text-xs text-muted-foreground">Your current standing in the MessX</p>
+              <p className="text-xs text-muted-foreground">Remaining funds in the mess account</p>
             </CardContent>
           </Card>
           <Card>
