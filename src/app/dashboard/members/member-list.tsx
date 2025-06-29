@@ -64,7 +64,7 @@ export function MemberList({ members, messId, currentUserProfile, onUpdate }: Me
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className={`text-right font-bold ${member.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <TableCell className={`text-right font-bold ${member.balance >= 0 ? 'text-primary' : 'text-destructive'}`}>
                     ৳{member.balance.toFixed(2)}
                   </TableCell>
                   <TableCell className="text-center">{member.meals.toFixed(2)}</TableCell>

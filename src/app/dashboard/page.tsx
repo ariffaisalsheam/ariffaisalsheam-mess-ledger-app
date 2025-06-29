@@ -135,10 +135,10 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Mess Balance</CardTitle>
-              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>৳</span>
+              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>৳</span>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
                   {totalMessBalance >= 0 ? '+' : '-'}৳{Math.abs(totalMessBalance).toFixed(2)}
               </div>
               <p className="text-xs text-muted-foreground">Remaining funds in the mess account</p>
@@ -167,7 +167,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <span className="text-lg text-red-500">৳</span>
+              <span className="text-lg text-destructive">৳</span>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">৳{totalExpenses.toFixed(2)}</div>
@@ -177,7 +177,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-              <span className="text-lg text-blue-500">৳</span>
+              <span className="text-lg text-primary">৳</span>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">৳{totalDeposits.toFixed(2)}</div>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
                             <p className="text-sm text-muted-foreground">Added by {expense.addedBy}</p>
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-lg text-red-600">- ৳{expense.amount.toFixed(2)}</p>
+                            <p className="font-bold text-lg text-destructive">- ৳{expense.amount.toFixed(2)}</p>
                             <p className="text-xs text-muted-foreground">{format(new Date(expense.date), "PPP")}</p>
                           </div>
                         </div>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
                                   <p className="font-medium">{deposit.memberName}</p>
                               </div>
                               <div className="text-right">
-                                  <p className="font-bold text-lg text-green-600">+ ৳{deposit.amount.toFixed(2)}</p>
+                                  <p className="font-bold text-lg text-primary">+ ৳{deposit.amount.toFixed(2)}</p>
                                   <p className="text-xs text-muted-foreground">{format(new Date(deposit.date), "PPP")}</p>
                               </div>
                               </div>

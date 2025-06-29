@@ -269,25 +269,27 @@ export default function DashboardLayout({
           </div>
           <div className="mt-auto p-4 space-y-4 border-t">
             <Card>
-                <CardHeader className="p-2 md:p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
                     <CardTitle className="text-sm font-medium">Your Total Meals</CardTitle>
                     <Utensils className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                <CardContent className="p-3 pt-0">
                     <div className="text-2xl font-bold">
                         {userMeals.toFixed(2)}
                     </div>
+                    <p className="text-xs text-muted-foreground">Your meals this month</p>
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader className="p-2 md:p-4 flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
                     <CardTitle className="text-sm font-medium">Your Balance</CardTitle>
                     <Wallet className="h-4 w-4 text-muted-foreground"/>
                 </CardHeader>
-                <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                    <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <CardContent className="p-3 pt-0">
+                    <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-primary' : 'text-destructive'}`}>
                         {userBalance >= 0 ? '+' : '-'}৳{Math.abs(userBalance).toFixed(2)}
                     </div>
+                    <p className="text-xs text-muted-foreground">Your current account standing</p>
                 </CardContent>
             </Card>
           </div>

@@ -152,7 +152,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
             <TableRow key={item.id}>
               {type === 'expense' && <TableCell>{(item as Expense).description}</TableCell>}
               <TableCell>{format(new Date(item.date), 'PP')}</TableCell>
-              <TableCell className={`text-right font-mono ${type === 'deposit' ? 'text-green-500' : 'text-red-500'}`}>
+              <TableCell className={`text-right font-mono ${type === 'deposit' ? 'text-primary' : 'text-destructive'}`}>
                 {type === 'deposit' ? '+' : '-'} ৳{item.amount.toFixed(2)}
               </TableCell>
               {(isManager || isOwner) && (
