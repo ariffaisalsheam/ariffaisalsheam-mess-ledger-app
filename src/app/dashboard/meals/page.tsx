@@ -135,13 +135,17 @@ export default function MealsPage() {
     setGroupedHistory(grouped);
   }, [mealHistory]);
 
-  const handleMealCountChange = (meal: MealType, value: string | number) => {
-    const newCount = typeof value === 'string' ? parseFloat(value) : value;
-    if (isNaN(newCount) || newCount < 0) {
+  const handleMealCountChange = (meal: MealType, value: string) => {
+    if (value === '') {
+        setMeals(prev => prev ? { ...prev, [meal]: 0 } : null);
+        setIsSaved(false);
         return;
     }
-    setMeals(prev => prev ? { ...prev, [meal]: newCount } : null);
-    setIsSaved(false);
+    const newCount = parseFloat(value);
+    if (!isNaN(newCount) && newCount >= 0) {
+      setMeals(prev => prev ? { ...prev, [meal]: newCount } : null);
+      setIsSaved(false);
+    }
   };
   
   const handleSaveMeals = async () => {
@@ -155,6 +159,7 @@ export default function MealsPage() {
               description: "Your meal choices for today have been saved."
           });
           setIsSaved(true);
+          fetchMealData(); // Refresh data after saving
           fetchHistoryData(); // Refresh history
       } catch (error) {
           console.error("Failed to update meals:", error);
