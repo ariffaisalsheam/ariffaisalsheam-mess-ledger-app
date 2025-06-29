@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2, PlusCircle, UtensilsCrossed } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -122,7 +122,7 @@ export default function DashboardPage() {
         </>
       )}
       <div className="flex flex-col gap-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Mess Balance</CardTitle>
@@ -143,6 +143,16 @@ export default function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold">৳{mealRate.toFixed(2)}</div>
               <p className="text-xs text-muted-foreground">Based on total expenses and meals</p>
+            </CardContent>
+          </Card>
+           <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Meals</CardTitle>
+              <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalMessMeals.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Consumed across all members</p>
             </CardContent>
           </Card>
           <Card>
