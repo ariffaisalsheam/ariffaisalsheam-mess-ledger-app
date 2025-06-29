@@ -129,12 +129,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     };
 
     // Listener for personal notifications
-    const personalQuery = query(
-        notificationsRef, 
-        where('userId', '==', userId), 
-        orderBy('timestamp', 'desc'), 
-        limit(20)
-    );
+    const personalQuery = query(notificationsRef, where('userId', '==', userId));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -149,12 +144,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     // If the user is a manager, also listen for manager-wide notifications
     if (role === 'manager') {
-        const managerQuery = query(
-            notificationsRef, 
-            where('userId', '==', 'manager'), 
-            orderBy('timestamp', 'desc'), 
-            limit(20)
-        );
+        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             managerNotifications = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -739,7 +729,13 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     if (!db) throw new Error("Firestore not initialized");
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
-    const q = query(mealsColRef, orderBy('__name__', 'desc'), limit(days));
+
+    // Calculate the date `days` ago to create a start bound for the query
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (days -1));
+    const startDateString = startDate.toISOString().split('T')[0];
+    
+    const q = query(mealsColRef, where('__name__', '>=', startDateString));
     const querySnapshot = await getFirestoreDocs(q);
 
     const ledger: MealLedgerEntry[] = [];
@@ -750,7 +746,10 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    return ledger;
+    // Sort by date descending on the client side
+    ledger.sort((a, b) => b.date.localeCompare(a.date));
+
+    return ledger.slice(0, days);
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
