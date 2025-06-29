@@ -161,8 +161,14 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         q = query(notificationsRef, where('userId', '==', userId));
     }
     
-    const unsubscribe = onSnapshot(query(q, orderBy('timestamp', 'desc')), (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+        // Sort client-side to avoid composite index
+        notifications.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis() || 0;
+            const timeB = b.timestamp?.toMillis() || 0;
+            return timeB - timeA; // descending
+        });
         callback(notifications);
     }, (error) => console.error("Error on notifications snapshot:", error));
 
@@ -1046,13 +1052,16 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
     const querySnapshot = await getFirestoreDocs(q);
     
     const ledger = querySnapshot.docs.map(doc => ({
         date: doc.id,
         ...(doc.data() as MealStatus)
     }));
+
+    // Sort client-side
+    ledger.sort((a,b) => b.date.localeCompare(a.date));
 
     return ledger;
 }
