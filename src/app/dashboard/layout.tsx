@@ -32,8 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { getUserProfile, getMessById } from "@/services/messService";
-import type { UserProfile } from "@/services/messService";
+import { getUserProfile, getMessById, getMemberDetails, type UserProfile, type Member } from "@/services/messService";
 
 export default function DashboardLayout({
   children,
@@ -42,10 +41,11 @@ export default function DashboardLayout({
 }) {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [memberDetails, setMemberDetails] = useState<Member | null>(null);
   const [messName, setMessName] = useState("Loading...");
   const [pageTitle, setPageTitle] = useState("Dashboard");
   const [loading, setLoading] = useState(true);
-  const pendingReviews = 2; // This remains mock data for now
+  const pendingReviews = 0; // This remains mock data for now
 
   const pathname = usePathname();
   const router = useRouter();
@@ -77,8 +77,11 @@ export default function DashboardLayout({
               } else {
                 setMessName("No Mess");
               }
-              setLoading(false);
             });
+            getMemberDetails(profile.messId, authUser.uid).then(details => {
+                setMemberDetails(details);
+                setLoading(false);
+            })
           } else {
             router.push('/welcome');
           }
@@ -148,6 +151,8 @@ export default function DashboardLayout({
       </div>
     );
   }
+  
+  const userBalance = memberDetails?.balance ?? 0;
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -177,7 +182,9 @@ export default function DashboardLayout({
                     <Wallet className="h-6 w-6 text-primary"/>
                     <div>
                         <p className="text-sm font-medium leading-none">Your Balance</p>
-                        <p className="text-xl font-bold text-green-600">+৳500.00</p>
+                        <p className={`text-xl font-bold ${userBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {userBalance >= 0 ? '+' : '-'}৳{Math.abs(userBalance).toFixed(2)}
+                        </p>
                     </div>
                 </div>
               </CardContent>

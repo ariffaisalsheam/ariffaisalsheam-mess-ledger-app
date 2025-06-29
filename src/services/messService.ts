@@ -12,6 +12,7 @@ import {
   query,
   where,
   limit,
+  Timestamp
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -31,11 +32,28 @@ export type UserProfile = {
 export type Member = {
   id: string;
   name: string;
-  role: "manager" | "member";
+  role: 'manager' | 'member';
   balance: number;
   meals: number;
   avatar: string;
 };
+
+export interface Expense {
+    id: string;
+    amount: number;
+    description: string;
+    addedBy: string; // User's name
+    date: string; // ISO string
+    userId: string;
+}
+
+export interface Deposit {
+    id: string;
+    amount: number;
+    memberName: string; // Submitter's name
+    date: string; // ISO string
+    userId: string;
+}
 
 
 // Create or update user in Firestore
@@ -79,6 +97,8 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
       name: user.displayName,
       email: user.email,
       role: 'manager',
+      balance: 0,
+      meals: 0,
   });
 
   return messRef.id;
@@ -119,6 +139,8 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
         name: user.displayName,
         email: user.email,
         role: 'member',
+        balance: 0,
+        meals: 0,
     });
 
     return messId;
@@ -164,12 +186,58 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
             id: doc.id,
             name: data.name || "Unnamed Member",
             role: data.role,
-            // Mock data for fields not yet in DB
-            balance: Math.random() * 600 - 300,
-            meals: Math.floor(Math.random() * 30) + 1,
+            balance: data.balance ?? 0,
+            meals: data.meals ?? 0,
             avatar: profile?.photoURL || 'https://placehold.co/40x40.png',
         };
     });
 
     return members;
 }
+
+// Get a single member's details
+export const getMemberDetails = async (messId: string, userId: string): Promise<Member | null> => {
+    if (!db) throw new Error("Firestore not initialized");
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const memberSnap = await getDoc(memberRef);
+
+    if (!memberSnap.exists()) {
+        return null;
+    }
+
+    const userProfile = await getUserProfile(userId);
+    const data = memberSnap.data();
+
+    return {
+        id: userId,
+        name: data.name || "Unnamed Member",
+        role: data.role,
+        balance: data.balance ?? 0,
+        meals: data.meals ?? 0,
+        avatar: userProfile?.photoURL || 'https://placehold.co/40x40.png',
+    };
+};
+
+// Get all expenses for a mess
+export const getExpenses = async (messId: string): Promise<Expense[]> => {
+    if (!db) return [];
+    const expensesCol = collection(db, 'messes', messId, 'expenses');
+    const snapshot = await getFirestoreDocs(expensesCol);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Expense;
+    });
+};
+
+// Get all deposits for a mess
+export const getDeposits = async (messId: string): Promise<Deposit[]> => {
+    if (!db) return [];
+    const depositsCol = collection(db, 'messes', messId, 'deposits');
+    const snapshot = await getFirestoreDocs(depositsCol);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Deposit;
+    });
+};
