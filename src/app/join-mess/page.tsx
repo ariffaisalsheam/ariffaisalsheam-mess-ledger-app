@@ -84,10 +84,14 @@ export default function JoinMessPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Join a Mess</CardTitle>
-            <CardDescription>Enter your invite code to join an existing mess.</CardDescription>
+            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>
+            <div className="mb-4 text-center">
+                <h3 className="text-lg font-semibold">Join a Mess</h3>
+                <p className="text-sm text-muted-foreground">Enter your invite code to join an existing mess.</p>
+            </div>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="invite-code">Invite Code</Label>

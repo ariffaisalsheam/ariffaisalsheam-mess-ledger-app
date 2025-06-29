@@ -84,10 +84,14 @@ export default function CreateMessPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Create Your Mess</CardTitle>
-            <CardDescription>Give your new mess a name to get started.</CardDescription>
+            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 text-center">
+              <h3 className="text-lg font-semibold">Create Your Mess</h3>
+              <p className="text-sm text-muted-foreground">Give your new mess a name to get started.</p>
+          </div>
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="mess-name">Mess Name</Label>
