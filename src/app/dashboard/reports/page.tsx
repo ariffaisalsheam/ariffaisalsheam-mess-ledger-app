@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Printer, FileText } from "lucide-react";
+import { Loader2, Download, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -15,12 +15,15 @@ import { useRouter } from 'next/navigation';
 import { getUserProfile, generateMonthlyReport, type UserProfile, type MonthlyReport, type Expense, type Deposit } from '@/services/messService';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function ReportsPage() {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
     const [report, setReport] = useState<MonthlyReport | null>(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [downloading, setDownloading] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState<string>(`${new Date().getFullYear()}-${new Date().getMonth()}`);
 
     const router = useRouter();
@@ -60,13 +63,52 @@ export default function ReportsPage() {
         }
     }, [userProfile, selectedMonth, toast, generating]);
 
-    const handlePrint = () => {
-        window.print();
+    const handleDownload = async () => {
+        const reportElement = document.getElementById('report-content');
+        if (!reportElement || !report) {
+            toast({ title: "Error", description: "Report content not found.", variant: "destructive" });
+            return;
+        }
+
+        setDownloading(true);
+        try {
+            const canvas = await html2canvas(reportElement, {
+                scale: 2,
+                useCORS: true,
+                backgroundColor: null,
+            });
+            const imgData = canvas.toDataURL('image/png');
+            
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+            const pageHeight = pdf.internal.pageSize.getHeight();
+
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft > 0) {
+              position = heightLeft - imgHeight;
+              pdf.addPage();
+              pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+              heightLeft -= pageHeight;
+            }
+
+            pdf.save(`Mess-Report-${report.month}-${report.year}.pdf`);
+        } catch(error) {
+            console.error("Failed to download PDF:", error);
+            toast({ title: "Download Failed", description: "Could not generate PDF for download.", variant: "destructive" });
+        } finally {
+            setDownloading(false);
+        }
     }
     
     const monthOptions = Array.from({ length: 12 }, (_, i) => {
         const date = new Date();
-        date.setMonth(date.getMonth() - i, 1); // Set to first day of month to avoid overflow issues
+        date.setMonth(date.getMonth() - i, 1);
         return {
             value: `${date.getFullYear()}-${date.getMonth()}`,
             label: date.toLocaleString('default', { month: 'long', year: 'numeric' })
@@ -79,7 +121,7 @@ export default function ReportsPage() {
 
     return (
         <div className="space-y-6">
-            <Card className="print:shadow-none print:border-none">
+            <Card>
                 <CardHeader>
                     <CardTitle className="font-headline">Generate Monthly Report</CardTitle>
                     <CardDescription>Select a month to generate a financial summary for your mess.</CardDescription>
@@ -118,15 +160,16 @@ export default function ReportsPage() {
             )}
 
             {report && (
-                <Card id="report-content" className="print:shadow-none print:border-none">
+                <Card id="report-content" className="bg-background">
                     <CardHeader>
                         <div className="flex justify-between items-start">
                             <div>
                                 <CardTitle className="font-headline text-2xl">Mess Report: {report.month} {report.year}</CardTitle>
                                 <CardDescription>A summary of all financial activities and meal counts for the selected month.</CardDescription>
                             </div>
-                            <Button onClick={handlePrint} variant="outline" className="print:hidden">
-                                <Printer className="mr-2 h-4 w-4" /> Print
+                            <Button onClick={handleDownload} variant="outline" disabled={downloading}>
+                                {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                Download
                             </Button>
                         </div>
                     </CardHeader>
@@ -155,7 +198,7 @@ export default function ReportsPage() {
                             {/* Member Breakdown Table */}
                             <div>
                                <h3 className="text-lg font-headline mb-4">Member Breakdown</h3>
-                               <div className="border rounded-lg">
+                               <div className="border rounded-lg overflow-x-auto">
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -205,7 +248,7 @@ export default function ReportsPage() {
                                         <TabsTrigger value="deposits">Deposits ({report.deposits.length})</TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="expenses" className="mt-4">
-                                        <div className="border rounded-lg">
+                                        <div className="border rounded-lg overflow-x-auto">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
@@ -233,7 +276,7 @@ export default function ReportsPage() {
                                         </div>
                                     </TabsContent>
                                     <TabsContent value="deposits" className="mt-4">
-                                        <div className="border rounded-lg">
+                                        <div className="border rounded-lg overflow-x-auto">
                                             <Table>
                                                 <TableHeader>
                                                     <TableRow>
@@ -262,27 +305,11 @@ export default function ReportsPage() {
                             </div>
                         </div>
                     </CardContent>
-                    <CardFooter className="print:hidden">
+                    <CardFooter>
                         <p className="text-xs text-muted-foreground">This report is based on approved expenses and deposits for the selected month.</p>
                     </CardFooter>
                 </Card>
             )}
-            <style jsx global>{`
-                @media print {
-                    body > *:not(#report-content) {
-                        display: none;
-                    }
-                    #report-content, #report-content * {
-                        display: block;
-                    }
-                    #report-content {
-                        position: absolute;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                    }
-                }
-            `}</style>
         </div>
     );
 }
