@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -5,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowRight, PlusCircle, Users, LogOut, Settings as SettingsIcon, Loader2 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
@@ -149,6 +150,10 @@ export default function WelcomePage() {
       </div>
       <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
         <DialogContent className="sm:max-w-xl p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Personal Information</DialogTitle>
+            <DialogDescription>Update your name and profile picture.</DialogDescription>
+          </DialogHeader>
           <ProfileEditor 
             userProfile={userProfile}
             onProfileUpdate={fetchProfile}
