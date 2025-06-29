@@ -1,5 +1,6 @@
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -17,7 +18,8 @@ import {
   runTransaction,
   deleteDoc,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  orderBy
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -70,6 +72,10 @@ export interface MealStatus {
     breakfast: boolean;
     lunch: boolean;
     dinner: boolean;
+}
+
+export interface MealLedgerEntry extends MealStatus {
+    date: string; // "YYYY-MM-DD"
 }
 
 
@@ -523,4 +529,57 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
         // Update today's meal status document
         transaction.set(mealDocRef, { [meal]: newStatus }, { merge: true });
     });
+};
+
+export const getMealLedgerForUser = async (messId: string, userId: string, days: number = 30): Promise<MealLedgerEntry[]> => {
+    if (!db) throw new Error("Firestore not initialized");
+    
+    const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
+    const q = query(mealsColRef, orderBy('__name__', 'desc'), limit(days));
+    const querySnapshot = await getFirestoreDocs(q);
+
+    const ledger: MealLedgerEntry[] = [];
+    querySnapshot.forEach(doc => {
+        ledger.push({
+            date: doc.id,
+            ...(doc.data() as MealStatus)
+        });
+    });
+
+    return ledger;
+}
+
+export const ensureDailyMealDocs = async (messId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const membersRef = collection(db, 'messes', messId, 'members');
+    const membersSnap = await getFirestoreDocs(membersRef);
+
+    const batch = writeBatch(db);
+    let writes = 0;
+
+    const mealDocPromises = membersSnap.docs.map(memberDoc => {
+        const mealDocRef = doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr);
+        return getDoc(mealDocRef);
+    });
+
+    const mealDocSnaps = await Promise.all(mealDocPromises);
+    
+    mealDocSnaps.forEach((mealDocSnap, index) => {
+        if (!mealDocSnap.exists()) {
+            const memberDoc = membersSnap.docs[index];
+            const mealDocRef = doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr);
+            batch.set(mealDocRef, {
+                breakfast: true,
+                lunch: true,
+                dinner: true,
+            });
+            writes++;
+        }
+    });
+    
+    if (writes > 0) {
+        await batch.commit();
+    }
 };

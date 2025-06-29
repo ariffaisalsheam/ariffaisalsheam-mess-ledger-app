@@ -38,6 +38,7 @@ import {
     getMessById, 
     onMemberDetailsChange,
     onPendingItemsChange,
+    ensureDailyMealDocs,
     type UserProfile, 
     type Member 
 } from "@/services/messService";
@@ -85,6 +86,11 @@ export default function DashboardLayout({
             if (profile) {
                 setUserProfile(profile);
                 if (profile.messId) {
+                    // Ensure all members have today's meal doc created.
+                    // This is a workaround for not having a daily scheduled function.
+                    // It runs once when any user loads the dashboard.
+                    await ensureDailyMealDocs(profile.messId);
+
                     const mess = await getMessById(profile.messId);
                     setMessName(mess?.name as string || "No Mess");
 

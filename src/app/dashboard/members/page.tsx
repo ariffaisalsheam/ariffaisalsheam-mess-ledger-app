@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ import { useRouter } from 'next/navigation';
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -24,6 +26,7 @@ export default function MembersPage() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         getUserProfile(user.uid).then(profile => {
+          setUserProfile(profile);
           if (profile && profile.messId) {
             getMembersOfMess(profile.messId).then(fetchedMembers => {
               setMembers(fetchedMembers);
@@ -57,7 +60,7 @@ export default function MembersPage() {
           <UserCog className="mr-2 h-4 w-4" /> Invite New Member
         </Button>
       </div>
-      <MemberList members={members} />
+      {userProfile?.messId && <MemberList members={members} messId={userProfile.messId} />}
     </div>
   );
 }
