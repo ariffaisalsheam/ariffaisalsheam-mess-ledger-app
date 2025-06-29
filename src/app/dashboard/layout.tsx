@@ -366,7 +366,7 @@ export default function DashboardLayout({
                                         {n.timestamp ? formatDistanceToNow(n.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
                                     </p>
                                 </div>
-                                {!n.read && <div className="absolute left-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary" />}
+                                {!n.read && <div className="absolute right-4 bottom-3 h-2 w-2 rounded-full bg-primary" />}
                                 <Button
                                     variant="ghost"
                                     size="icon"
