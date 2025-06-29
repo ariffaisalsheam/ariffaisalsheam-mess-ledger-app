@@ -1,13 +1,12 @@
-
 "use client";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowRight, PlusCircle, Users, LogOut, Settings as SettingsIcon, Loader2 } from "lucide-react";
+import { PlusCircle, Users, LogOut, Settings as SettingsIcon, Loader2 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
@@ -107,46 +106,37 @@ export default function WelcomePage() {
               </DropdownMenu>
           </div>
 
-          <div className="mb-8 flex flex-col items-center text-center">
-              <Logo />
-              <h1 className="mt-4 text-4xl font-bold font-headline text-primary">Welcome{userProfile?.displayName ? `, ${userProfile.displayName}` : ' to Mess Ledger'}!</h1>
-              <p className="mt-2 text-lg text-muted-foreground">Let's get you set up. What would you like to do?</p>
-          </div>
-          <div className="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
-              <Card className="flex flex-col justify-between transition-all hover:shadow-lg hover:border-primary">
-                  <CardHeader>
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                          <PlusCircle className="h-6 w-6 text-primary"/>
-                      </div>
-                      <CardTitle className="font-headline text-2xl">Create a New Mess</CardTitle>
-                      <CardDescription>Start from scratch, invite your friends, and become the manager of your own mess.</CardDescription>
-                  </CardHeader>
-                  <CardFooter>
-                      <Link href="/create-mess" className="w-full">
-                          <Button className="w-full">
-                              Create a Mess <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                      </Link>
-                  </CardFooter>
-              </Card>
-
-              <Card className="flex flex-col justify-between transition-all hover:shadow-lg hover:border-primary">
-                  <CardHeader>
-                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                          <Users className="h-6 w-6 text-primary"/>
-                      </div>
-                      <CardTitle className="font-headline text-2xl">Join an Existing Mess</CardTitle>
-                      <CardDescription>Already have an invite code or a magic link? Join your friends and start managing meals.</CardDescription>
-                  </CardHeader>
-                  <CardFooter>
-                      <Link href="/join-mess" className="w-full">
-                          <Button className="w-full">
-                              Join a Mess <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
-                      </Link>
-                  </CardFooter>
-              </Card>
-          </div>
+          <Card className="w-full max-w-lg">
+            <CardHeader className="text-center p-6">
+                <div className="mx-auto mb-4">
+                    <Logo />
+                </div>
+                <CardTitle className="font-headline text-3xl">Welcome, {userProfile?.displayName || 'Friend'}!</CardTitle>
+                <CardDescription>
+                    You're not part of a mess yet. Create one or join an existing one to get started.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 pt-2 flex flex-col gap-4">
+                <Link href="/create-mess" className="w-full">
+                    <Button className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02]">
+                        <div className="flex items-center gap-3">
+                            <PlusCircle className="h-5 w-5"/>
+                            <span className="font-bold text-base">Create a New Mess</span>
+                        </div>
+                        <span className="text-sm font-normal text-primary-foreground/80 pl-8">Start from scratch and invite friends.</span>
+                    </Button>
+                </Link>
+                <Link href="/join-mess" className="w-full">
+                    <Button variant="secondary" className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02]">
+                        <div className="flex items-center gap-3">
+                            <Users className="h-5 w-5"/>
+                            <span className="font-bold text-base">Join an Existing Mess</span>
+                        </div>
+                        <span className="text-sm font-normal text-secondary-foreground/80 pl-8">Use an invite code to join a mess.</span>
+                    </Button>
+                </Link>
+            </CardContent>
+          </Card>
       </div>
       <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
         <DialogContent className="sm:max-w-xl p-0">
