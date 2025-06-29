@@ -30,6 +30,7 @@ import {
   Bell,
   Loader2,
   Clock,
+  ClipboardList,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -140,6 +141,7 @@ export default function DashboardLayout({
         switch(page) {
             case 'meals': title = 'Manage Your Meals'; break;
             case 'members': title = 'Mess Members'; break;
+            case 'reports': title = 'Monthly Reports'; break;
             case 'settings': title = 'Settings'; break;
             case 'review': title = 'Review Queue'; break;
             default: title = 'Dashboard';
@@ -174,6 +176,7 @@ export default function DashboardLayout({
     { href: "/dashboard", icon: <Home className="h-4 w-4" />, label: "Dashboard" },
     { href: "/dashboard/meals", icon: <Utensils className="h-4 w-4" />, label: "Meals" },
     { href: "/dashboard/members", icon: <Users className="h-4 w-4" />, label: "Members" },
+    { href: "/dashboard/reports", icon: <ClipboardList className="h-4 w-4" />, label: "Reports" },
     { href: "/dashboard/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
   ];
 

@@ -107,6 +107,28 @@ export interface Notification {
     timestamp: Timestamp;
 }
 
+
+export interface MemberReport {
+    memberId: string;
+    memberName: string;
+    avatar: string;
+    totalMeals: number;
+    mealCost: number;
+    totalDeposits: number;
+    finalBalance: number;
+}
+
+export interface MonthlyReport {
+    month: string;
+    year: number;
+    totalExpenses: number;
+    totalDeposits: number;
+    totalMeals: number;
+    mealRate: number;
+    memberReports: MemberReport[];
+}
+
+
 // --- Notifications ---
 
 export const createNotification = async (messId: string, notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
@@ -919,7 +941,7 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         
         // Only count meals that were explicitly set by a user. Default meals (isSetByUser:false) are not part of this calculation.
-        const oldMealTotalForDate = (oldMealData.isSetByUser) 
+        const oldMealTotalForDate = (oldMealData.isSetByUser || (mealCountChange !== 0 && !mealDoc.exists())) // Consider old total 0 if not set by user, unless it's a new doc
             ? (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0)
             : 0;
 
@@ -1160,3 +1182,101 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
 };
 
 
+// --- Reporting ---
+
+const getExpensesForMonth = async (messId: string, year: number, month: number): Promise<Expense[]> => {
+    if (!db) return [];
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+
+    const expensesCol = collection(db, 'messes', messId, 'expenses');
+    const q = query(expensesCol, where("date", ">=", Timestamp.fromDate(startDate)), where("date", "<=", Timestamp.fromDate(endDate)));
+    const snapshot = await getFirestoreDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Expense;
+    });
+};
+
+const getDepositsForMonth = async (messId: string, year: number, month: number): Promise<Deposit[]> => {
+    if (!db) return [];
+    const startDate = new Date(year, month, 1);
+    const endDate = new Date(year, month + 1, 0, 23, 59, 59);
+
+    const depositsCol = collection(db, 'messes', messId, 'deposits');
+    const q = query(depositsCol, where("date", ">=", Timestamp.fromDate(startDate)), where("date", "<=", Timestamp.fromDate(endDate)));
+    const snapshot = await getFirestoreDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Deposit;
+    });
+};
+
+const getMealsForMonth = async (messId: string, memberId: string, year: number, month: number): Promise<number> => {
+    if (!db) return 0;
+    
+    const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`; // YYYY-MM
+    const mealsColRef = collection(db, 'messes', messId, 'members', memberId, 'meals');
+    const q = query(mealsColRef, where(documentId(), ">=", monthStr + '-01'), where(documentId(), "<=", monthStr + '-31'));
+    const querySnapshot = await getFirestoreDocs(q);
+    
+    let totalMeals = 0;
+    querySnapshot.forEach(doc => {
+        const data = doc.data() as MealStatus;
+        totalMeals += (data.breakfast || 0) + (data.lunch || 0) + (data.dinner || 0);
+    });
+
+    return totalMeals;
+}
+
+export const generateMonthlyReport = async (messId: string, year: number, month: number): Promise<MonthlyReport> => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const [members, expenses, deposits] = await Promise.all([
+        getMembersOfMess(messId),
+        getExpensesForMonth(messId, year, month),
+        getDepositsForMonth(messId, year, month),
+    ]);
+
+    const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
+    const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
+    
+    const mealPromises = members.map(member => getMealsForMonth(messId, member.id, year, month));
+    const memberMeals = await Promise.all(mealPromises);
+    
+    const memberData = members.map((member, index) => ({
+        ...member,
+        monthlyMeals: memberMeals[index],
+        monthlyDeposits: deposits.filter(d => d.userId === member.id).reduce((sum, item) => sum + item.amount, 0)
+    }));
+
+    const totalMeals = memberMeals.reduce((sum, meals) => sum + meals, 0);
+    const mealRate = totalMeals > 0 ? totalExpenses / totalMeals : 0;
+    
+    const memberReports: MemberReport[] = memberData.map(member => {
+        const mealCost = member.monthlyMeals * mealRate;
+        const finalBalance = member.monthlyDeposits - mealCost;
+
+        return {
+            memberId: member.id,
+            memberName: member.name,
+            avatar: member.avatar,
+            totalMeals: member.monthlyMeals,
+            mealCost,
+            totalDeposits: member.monthlyDeposits,
+            finalBalance,
+        };
+    });
+
+    return {
+        month: new Date(year, month).toLocaleString('default', { month: 'long' }),
+        year,
+        totalExpenses,
+        totalDeposits,
+        totalMeals,
+        mealRate,
+        memberReports,
+    };
+};
