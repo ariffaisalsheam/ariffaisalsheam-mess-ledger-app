@@ -44,6 +44,30 @@ import { Badge } from '@/components/ui/badge';
 
 type MealType = keyof Omit<MealStatus, 'isSetByUser'>;
 
+const MealCell = ({ personal, guest, isSet }: { personal?: number; guest?: number; isSet?: boolean }) => {
+    const pVal = personal ?? 0;
+    const gVal = guest ?? 0;
+    
+    // If user hasn't set meals and there are no guest meals, show X
+    if (!isSet && gVal === 0) {
+        return <XCircle className="mx-auto h-4 w-4 text-muted-foreground" />;
+    }
+    
+    const formatNum = (num: number) => num.toFixed(1).replace(/\.0$/, '');
+
+    const personalDisplay = isSet ? formatNum(pVal) : '-';
+    
+    return (
+        <>
+            {personalDisplay}
+            {gVal > 0 && (
+                <span className="text-muted-foreground"> ({formatNum(gVal)})</span>
+            )}
+        </>
+    );
+};
+
+
 export default function MealsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -302,7 +326,7 @@ export default function MealsPage() {
                                         }
                                     </p>
                                 </div>
-                                <MealCountControl meal={meal} isLocked={isLocked} />
+                                <MealCountControl meal={meal as MealType} isLocked={isLocked} />
                             </div>
                             {index < enabledMeals.length - 1 && <Separator />}
                         </React.Fragment>
@@ -344,9 +368,9 @@ export default function MealsPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Member</TableHead>
-                                        <TableHead className="text-center">Breakfast</TableHead>
-                                        <TableHead className="text-center">Lunch</TableHead>
-                                        <TableHead className="text-center">Dinner</TableHead>
+                                        <TableHead className="text-center">Breakfast (Guest)</TableHead>
+                                        <TableHead className="text-center">Lunch (Guest)</TableHead>
+                                        <TableHead className="text-center">Dinner (Guest)</TableHead>
                                         {userProfile?.role === 'manager' && <TableHead className="text-right">Actions</TableHead>}
                                     </TableRow>
                                 </TableHeader>
@@ -355,13 +379,13 @@ export default function MealsPage() {
                                         <TableRow key={entry.memberId}>
                                             <TableCell className="font-medium">{entry.memberName}</TableCell>
                                             <TableCell className="text-center font-mono">
-                                                {entry.isSetByUser ? entry.breakfast : <XCircle className="mx-auto h-4 w-4 text-muted-foreground" />}
+                                                <MealCell personal={entry.breakfast} guest={entry.guestBreakfast} isSet={entry.isSetByUser} />
                                             </TableCell>
                                             <TableCell className="text-center font-mono">
-                                                {entry.isSetByUser ? entry.lunch : <XCircle className="mx-auto h-4 w-4 text-muted-foreground" />}
+                                                <MealCell personal={entry.lunch} guest={entry.guestLunch} isSet={entry.isSetByUser} />
                                             </TableCell>
                                             <TableCell className="text-center font-mono">
-                                                {entry.isSetByUser ? entry.dinner : <XCircle className="mx-auto h-4 w-4 text-muted-foreground" />}
+                                                <MealCell personal={entry.dinner} guest={entry.guestDinner} isSet={entry.isSetByUser} />
                                             </TableCell>
                                             {userProfile?.role === 'manager' && (
                                                 <TableCell className="text-right">

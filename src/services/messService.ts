@@ -87,6 +87,9 @@ export interface MealStatus {
     lunch: number;
     dinner: number;
     isSetByUser?: boolean;
+    guestBreakfast?: number;
+    guestLunch?: number;
+    guestDinner?: number;
 }
 
 export interface MealLedgerEntry extends MealStatus {
@@ -149,42 +152,29 @@ export const createNotification = async (messId: string, notificationData: Omit<
 export const onNotificationsChange = (messId: string, userId: string, role: 'manager' | 'member' | undefined, callback: (notifications: Notification[]) => void) => {
     if (!db || !role) return () => {};
 
-    const qPersonal = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
-    const qManager = query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId]));
-    
-    let combinedNotifications: Notification[] = [];
-    let personalNotifs: Notification[] = [];
-    let managerNotifs: Notification[] = [];
-
-    const updateAndCallback = () => {
-        if (role === 'manager') {
-            const allNotifs = [...personalNotifs, ...managerNotifs];
-            const uniqueNotifs = Array.from(new Map(allNotifs.map(n => [n.id, n])).values());
-            uniqueNotifs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-            callback(uniqueNotifs);
-        } else {
-             personalNotifs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-             callback(personalNotifs);
-        }
+    let q: any;
+    if (role === 'manager') {
+        q = query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId]));
+    } else {
+        q = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
     }
+    
+    const finalQuery = query(q, orderBy('timestamp', 'desc'));
 
-    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
-        personalNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-        updateAndCallback();
-    }, (error) => console.error("Error on personal notifications snapshot:", error));
-
-    const unsubManager = onSnapshot(qManager, (snapshot) => {
+    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+        const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+        
+        // As manager can get duplicate notifications (one for 'manager' and one for their 'userId'), we filter them
         if (role === 'manager') {
-            managerNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-            updateAndCallback();
+            const uniqueNotifications = Array.from(new Map(notifications.map(n => [n.id, n])).values());
+            callback(uniqueNotifications);
+        } else {
+            callback(notifications);
         }
-    }, (error) => console.error("Error on manager notifications snapshot:", error));
 
+    }, (error) => console.error("Error on notifications snapshot:", error));
 
-    return () => {
-        unsubPersonal();
-        unsubManager();
-    };
+    return unsubscribe;
 }
 
 
@@ -803,6 +793,7 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
 
     const hostMemberRef = doc(db, 'messes', messId, 'members', hostUserId);
     const guestLogRef = doc(collection(db, 'messes', messId, 'guestMealLog'));
+    const dailyMealDocRef = doc(db, 'messes', messId, 'members', hostUserId, 'meals', date);
 
     const totalGuestMeals = (guestMeals.breakfast || 0) + (guestMeals.lunch || 0) + (guestMeals.dinner || 0);
 
@@ -814,16 +805,26 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
 
     await runTransaction(db, async (transaction) => {
         const hostMemberDoc = await transaction.get(hostMemberRef);
+        const dailyMealDoc = await transaction.get(dailyMealDocRef);
 
         if (!hostMemberDoc.exists()) {
             throw new Error("Host member not found.");
         }
 
+        // Update total meals on member document
         const currentTotalMeals = hostMemberDoc.data().meals || 0;
         const newTotalMeals = currentTotalMeals + totalGuestMeals;
-
         transaction.update(hostMemberRef, { meals: newTotalMeals });
 
+        // Update daily meal document with guest meals
+        const currentGuestMeals = dailyMealDoc.exists() ? dailyMealDoc.data() as MealStatus : { guestBreakfast: 0, guestLunch: 0, guestDinner: 0 };
+        transaction.set(dailyMealDocRef, {
+            guestBreakfast: (currentGuestMeals.guestBreakfast || 0) + (guestMeals.breakfast || 0),
+            guestLunch: (currentGuestMeals.guestLunch || 0) + (guestMeals.lunch || 0),
+            guestDinner: (currentGuestMeals.guestDinner || 0) + (guestMeals.dinner || 0),
+        }, { merge: true });
+
+        // Create a log entry for auditing
         transaction.set(guestLogRef, {
             hostUserId,
             hostUserName: userProfile?.displayName || 'Unknown',
@@ -875,9 +876,12 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
             lunch: data.lunch ?? 0,
             dinner: data.dinner ?? 0,
             isSetByUser: data.isSetByUser ?? false,
+            guestBreakfast: data.guestBreakfast ?? 0,
+            guestLunch: data.guestLunch ?? 0,
+            guestDinner: data.guestDinner ?? 0,
         };
     } else {
-        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
+        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 };
     }
 }
 
@@ -934,13 +938,16 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
             lunch: data.lunch ?? 0,
             dinner: data.dinner ?? 0,
             isSetByUser: data.isSetByUser ?? false,
+            guestBreakfast: data.guestBreakfast ?? 0,
+            guestLunch: data.guestLunch ?? 0,
+            guestDinner: data.guestDinner ?? 0,
         };
     } else {
-        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
+        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 };
     }
 }
 
-export const updateMealForDate = async (messId: string, userId: string, date: string, newMeals: MealStatus) => {
+export const updateMealForDate = async (messId: string, userId: string, date: string, newMeals: Partial<MealStatus>) => {
     if (!db) throw new Error("Firestore not initialized");
 
     const memberRef = doc(db, 'messes', messId, 'members', userId);
@@ -956,30 +963,32 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         
         const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         
-        // Only count meals that were explicitly set by a user. Default meals (isSetByUser:false) are not part of this calculation.
-        const oldMealTotalForDate = (oldMealData.isSetByUser)
-            ? (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0)
-            : 0;
-        
-        const newMealTotalForDate = (newMeals.isSetByUser) 
-            ? (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0)
-            : 0;
+        const wasSetByUser = oldMealData.isSetByUser;
+        const isNowSetByUser = newMeals.isSetByUser === undefined ? wasSetByUser : newMeals.isSetByUser;
 
-        const mealCountChange = newMealTotalForDate - oldMealTotalForDate;
-        const currentTotalMeals = memberDoc.data().meals || 0;
+        const oldPersonalTotal = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0);
+        const newPersonalTotal = (newMeals.breakfast ?? oldMealData.breakfast ?? 0) + (newMeals.lunch ?? oldMealData.lunch ?? 0) + (newMeals.dinner ?? oldMealData.dinner ?? 0);
+
+        let mealCountChange = 0;
         
-        const isNewRecord = !mealDoc.exists();
-        const userStatusChanged = newMeals.isSetByUser !== oldMealData.isSetByUser;
-        
-        if (mealCountChange !== 0 || isNewRecord || userStatusChanged) {
-            transaction.set(mealDocRef, newMeals, { merge: true });
-            
-            // Only update total meals if there's a real change in meal count.
-            if (mealCountChange !== 0) {
-                 const newTotalMeals = currentTotalMeals + mealCountChange;
-                 transaction.update(memberRef, { meals: newTotalMeals });
-            }
+        if (wasSetByUser && !isNowSetByUser) {
+            // Meals are being cleared/reset to default
+            mealCountChange = -oldPersonalTotal;
+        } else if (!wasSetByUser && isNowSetByUser) {
+            // Meals are being set for the first time
+            mealCountChange = newPersonalTotal;
+        } else if (wasSetByUser && isNowSetByUser) {
+            // Meals were set and are being changed
+            mealCountChange = newPersonalTotal - oldPersonalTotal;
         }
+
+        if (mealCountChange !== 0) {
+            const currentTotalMeals = memberDoc.data().meals || 0;
+            const newTotalMeals = currentTotalMeals + mealCountChange;
+            transaction.update(memberRef, { meals: newTotalMeals });
+        }
+        
+        transaction.set(mealDocRef, newMeals, { merge: true });
     });
 };
 
@@ -987,9 +996,6 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     if (!db) throw new Error("Firestore not initialized");
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
-    // The orderBy on documentId() requires an index that might not be auto-created.
-    // We fetch without ordering and sort client-side to avoid this.
-    // Let's try to query with date limit and sort locally.
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
@@ -1115,6 +1121,9 @@ export const ensureDailyMealDocs = async (messId: string) => {
                         lunch: yesterdayData.lunch ?? (mess?.mealSettings?.isLunchOn ? 1 : 0),
                         dinner: yesterdayData.dinner ?? (mess?.mealSettings?.isDinnerOn ? 1 : 0),
                         isSetByUser: false, 
+                        guestBreakfast: 0, // Guest meals do not carry over
+                        guestLunch: 0,
+                        guestDinner: 0,
                     };
                 } else {
                     defaultStatus = {
@@ -1122,6 +1131,9 @@ export const ensureDailyMealDocs = async (messId: string) => {
                         lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
                         dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
                         isSetByUser: false,
+                        guestBreakfast: 0,
+                        guestLunch: 0,
+                        guestDinner: 0,
                     };
                 }
 
