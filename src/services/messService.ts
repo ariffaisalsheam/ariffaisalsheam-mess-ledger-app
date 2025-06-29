@@ -137,7 +137,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         callback(uniqueNotifications.slice(0, 20));
     };
 
-    const personalQuery = query(notificationsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
+    const personalQuery = query(notificationsRef, where('userId', '==', userId));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -151,7 +151,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     unsubscribes.push(personalUnsubscribe);
 
     if (role === 'manager') {
-        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
+        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             managerNotifications = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -617,6 +617,47 @@ export const rejectExpense = async (messId: string, expenseId: string) => {
 
 // ---- Meal Calculation and Management ----
 
+export const logGuestMeal = async (messId: string, hostUserId: string, date: string, guestMeals: { breakfast: number, lunch: number, dinner: number }) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const hostMemberRef = doc(db, 'messes', messId, 'members', hostUserId);
+    const guestLogRef = doc(collection(db, 'messes', messId, 'guestMealLog'));
+
+    const totalGuestMeals = (guestMeals.breakfast || 0) + (guestMeals.lunch || 0) + (guestMeals.dinner || 0);
+
+    if (totalGuestMeals <= 0) {
+        throw new Error("No guest meals to log.");
+    }
+    
+    const userProfile = await getUserProfile(hostUserId);
+
+    await runTransaction(db, async (transaction) => {
+        const hostMemberDoc = await transaction.get(hostMemberRef);
+
+        if (!hostMemberDoc.exists()) {
+            throw new Error("Host member not found.");
+        }
+
+        const currentTotalMeals = hostMemberDoc.data().meals || 0;
+        const newTotalMeals = currentTotalMeals + totalGuestMeals;
+
+        transaction.update(hostMemberRef, { meals: newTotalMeals });
+
+        transaction.set(guestLogRef, {
+            hostUserId,
+            hostUserName: userProfile?.displayName || 'Unknown',
+            date,
+            loggedAt: serverTimestamp(),
+            ...guestMeals
+        });
+    });
+
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${userProfile?.displayName} logged ${totalGuestMeals} guest meal(s).`
+    });
+};
+
 export const getTotalMessMeals = async (messId: string): Promise<number> => {
     if (!db) return 0;
     const membersColRef = collection(db, 'messes', messId, 'members');
@@ -859,52 +900,59 @@ export const getTodaysMealStatusesForMess = async (messId: string): Promise<Reco
 export const ensureDailyMealDocs = async (messId: string) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
     const membersRef = collection(db, 'messes', messId, 'members');
     const membersSnap = await getFirestoreDocs(membersRef);
     const mess = await getMessById(messId);
-
-    const batch = writeBatch(db);
-    let writes = 0;
-
-    const mealDocPromises = membersSnap.docs.map(memberDoc => {
-        const mealDocRef = doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr);
-        return getDoc(mealDocRef);
-    });
-
-    const mealDocSnaps = await Promise.all(mealDocPromises);
     
-    mealDocSnaps.forEach((mealDocSnap, index) => {
-        if (!mealDocSnap.exists()) {
-            const memberId = membersSnap.docs[index].id;
-            const mealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', todayStr);
+    await runTransaction(db, async (transaction) => {
+        for (const memberDoc of membersSnap.docs) {
+            const memberId = memberDoc.id;
             const memberRef = doc(db, 'messes', messId, 'members', memberId);
-            
-            const defaultStatus: MealStatus = {
-                breakfast: mess?.mealSettings?.isBreakfastOn ? 1 : 0,
-                lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
-                dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
-                isSetByUser: false,
-            };
+            const mealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', todayStr);
+            const todayMealDoc = await transaction.get(mealDocRef);
 
-            const mealTotal = defaultStatus.breakfast + defaultStatus.lunch + defaultStatus.dinner;
+            if (!todayMealDoc.exists()) {
+                const yesterdayMealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', yesterdayStr);
+                const yesterdayMealDoc = await transaction.get(yesterdayMealDocRef);
+                
+                let defaultStatus: MealStatus;
 
-            batch.set(mealDocRef, defaultStatus);
-            // We need to update the member's total meal count as well
-            // This requires a transaction for safety if multiple users open the app at the same time on a new day.
-            // For now, let's assume this function is called infrequently and a simple update is okay.
-            // A better solution would involve a cloud function triggered daily.
-            const memberData = membersSnap.docs[index].data();
-            const currentMeals = memberData.meals || 0;
-            batch.update(memberRef, { meals: currentMeals + mealTotal });
+                if (yesterdayMealDoc.exists()) {
+                    const yesterdayData = yesterdayMealDoc.data() as MealStatus;
+                    defaultStatus = {
+                        breakfast: yesterdayData.breakfast ?? (mess?.mealSettings?.isBreakfastOn ? 1 : 0),
+                        lunch: yesterdayData.lunch ?? (mess?.mealSettings?.isLunchOn ? 1 : 0),
+                        dinner: yesterdayData.dinner ?? (mess?.mealSettings?.isDinnerOn ? 1 : 0),
+                        isSetByUser: false, 
+                    };
+                } else {
+                    defaultStatus = {
+                        breakfast: mess?.mealSettings?.isBreakfastOn ? 1 : 0,
+                        lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
+                        dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
+                        isSetByUser: false,
+                    };
+                }
 
-            writes++;
+                const mealTotal = (defaultStatus.breakfast || 0) + (defaultStatus.lunch || 0) + (defaultStatus.dinner || 0);
+
+                transaction.set(mealDocRef, defaultStatus);
+                
+                if (mealTotal > 0) {
+                    const memberData = memberDoc.data();
+                    const currentMeals = memberData.meals || 0;
+                    transaction.update(memberRef, { meals: currentMeals + mealTotal });
+                }
+            }
         }
     });
-    
-    if (writes > 0) {
-        await batch.commit();
-    }
 };
 
 export const transferManagerRole = async (messId: string, currentManagerId: string, newManagerId: string) => {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, PlusCircle, UtensilsCrossed } from "lucide-react";
+import { Loader2, PlusCircle, UtensilsCrossed, UserPlus } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -24,6 +24,7 @@ import {
 import { format } from 'date-fns';
 import { AddDepositDialog } from "./add-deposit-dialog";
 import { AddExpenseDialog } from "./add-expense-dialog";
+import { LogGuestMealDialog } from "./log-guest-meal-dialog";
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,7 @@ export default function DashboardPage() {
   const [totalMessMeals, setTotalMessMeals] = useState(0);
   const [isDepositDialogOpen, setDepositDialogOpen] = useState(false);
   const [isExpenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [isGuestMealDialogOpen, setGuestMealDialogOpen] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async (messId: string, uid: string) => {
@@ -119,6 +121,13 @@ export default function DashboardPage() {
                 userId={user.uid}
                 onSuccess={handleSuccess}
             />
+            <LogGuestMealDialog
+                isOpen={isGuestMealDialogOpen}
+                setIsOpen={setGuestMealDialogOpen}
+                messId={userProfile.messId}
+                userId={user.uid}
+                onSuccess={handleSuccess}
+            />
         </>
       )}
       <div className="flex flex-col gap-6">
@@ -177,8 +186,11 @@ export default function DashboardPage() {
           </Card>
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-2xl font-headline font-semibold flex-1">Activity Feed</h2>
+            <Button variant="outline" onClick={() => setGuestMealDialogOpen(true)}>
+                <UserPlus className="mr-2 h-4 w-4" /> Log Guest Meal
+            </Button>
             <Button onClick={() => setDepositDialogOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add My Deposit
             </Button>
