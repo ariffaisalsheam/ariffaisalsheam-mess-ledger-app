@@ -52,7 +52,7 @@ export default function DashboardLayout({
   useEffect(() => {
     let title: string;
     if (pathname === '/dashboard') {
-      title = messName;
+      title = 'Dashboard';
     } else {
         const page = pathname.split('/').pop();
         switch(page) {
@@ -64,7 +64,7 @@ export default function DashboardLayout({
         }
     }
     setPageTitle(title);
-  }, [pathname, messName]);
+  }, [pathname]);
 
 
   const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => {
