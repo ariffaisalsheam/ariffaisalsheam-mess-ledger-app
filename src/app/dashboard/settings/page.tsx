@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save, Camera } from "lucide-react";
+import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from '@/hooks/use-toast';
@@ -32,13 +31,13 @@ import {
     getMembersOfMess,
     transferManagerRole,
     removeMemberFromMess,
-    updateUserProfile,
     updateMessName,
     deleteMess,
     type UserProfile as AppUserProfile, 
     type MealSettings,
     type Member
 } from '@/services/messService';
+import { ProfileEditor } from '@/components/profile-editor';
 
 
 interface MessData {
@@ -52,15 +51,7 @@ export default function SettingsPage() {
     const { toast } = useToast();
     const router = useRouter();
     
-    // State for user profile
     const [userProfile, setUserProfile] = useState<AppUserProfile | null>(null);
-    const [name, setName] = useState('');
-    const [imageFile, setImageFile] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [isSavingProfile, setIsSavingProfile] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    
-    // State for mess settings
     const [messData, setMessData] = useState<MessData | null>(null);
     const [messName, setMessName] = useState('');
     const [isSavingMessName, setIsSavingMessName] = useState(false);
@@ -82,17 +73,19 @@ export default function SettingsPage() {
 
     const fetchData = useCallback(() => {
         const currentUser = auth.currentUser;
-        if (!currentUser) return;
+        if (!currentUser) {
+            router.push('/login');
+            return;
+        };
 
         setLoading(true);
         getUserProfile(currentUser.uid).then(profile => {
             setUserProfile(profile);
             if (profile) {
-                setName(profile.displayName || '');
-                if (profile.messId && profile.role === 'manager') {
+                if (profile.messId) {
                     Promise.all([
                         getMessById(profile.messId),
-                        getMembersOfMess(profile.messId)
+                        profile.role === 'manager' ? getMembersOfMess(profile.messId) : Promise.resolve([])
                     ]).then(([mess, fetchedMembers]) => {
                         if (mess) {
                             setMessData(mess as MessData);
@@ -101,17 +94,24 @@ export default function SettingsPage() {
                                 setMealSettings(prev => ({...prev, ...mess.mealSettings}));
                             }
                         }
-                        setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
+                        if (profile.role === 'manager') {
+                            setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
+                        }
                     }).catch(err => {
                         console.error("Failed to load settings data", err);
                         toast({ title: "Error", description: "Could not load settings data.", variant: "destructive" });
                     });
+                } else if (window.location.pathname.startsWith('/dashboard')) {
+                    router.push('/welcome');
                 }
+            } else {
+                auth.signOut();
+                router.push('/login');
             }
         }).finally(() => {
             setLoading(false);
         });
-    }, [toast]);
+    }, [toast, router]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -145,13 +145,13 @@ export default function SettingsPage() {
     
     const handleSaveMessName = async () => {
         if (!messData?.id || !messName.trim()) return;
-        if (messName.trim() === messData.name) return; // No change
+        if (messName.trim() === messData.name) return;
     
         setIsSavingMessName(true);
         try {
             await updateMessName(messData.id, messName.trim());
             toast({ title: "Success!", description: "Mess name has been updated." });
-            router.refresh(); // This will re-run the layout and get the new name
+            router.refresh(); 
         } catch (error) {
             console.error("Failed to save mess name:", error);
             toast({ title: "Error", description: "Could not save mess name.", variant: "destructive" });
@@ -213,35 +213,6 @@ export default function SettingsPage() {
         }
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
-        }
-    };
-
-    const handleSaveProfile = async () => {
-        if (!userProfile) return;
-        setIsSavingProfile(true);
-        try {
-            await updateUserProfile(userProfile.uid, {
-                displayName: name,
-                newImageFile: imageFile,
-            });
-            toast({ title: "Success", description: "Your profile has been updated." });
-            router.refresh(); // Soft refresh the page to update layout data.
-            setImageFile(null);
-            setImagePreview(null);
-        } catch (error) {
-            console.error("Failed to update profile", error);
-            toast({ title: "Error", description: "Could not update your profile.", variant: "destructive" });
-        } finally {
-            setIsSavingProfile(false);
-        }
-    };
-
-
     if (loading) {
         return (
           <div className="flex h-full w-full items-center justify-center">
@@ -254,48 +225,12 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">Personal Information</CardTitle>
-                <CardDescription>Update your name and profile picture.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6 md:grid-cols-[120px_1fr] items-start">
-                <div className="relative group mx-auto">
-                    <Avatar className="h-28 w-28 border-2 border-primary/20">
-                        <AvatarImage src={imagePreview || userProfile?.photoURL || "https://placehold.co/120x120.png"} alt={userProfile?.displayName || ''} data-ai-hint="person portrait"/>
-                        <AvatarFallback>{userProfile?.displayName?.substring(0,2).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <Button
-                        size="icon"
-                        variant="secondary"
-                        className="absolute bottom-1 right-1 rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        <Camera className="h-4 w-4" />
-                        <span className="sr-only">Change picture</span>
-                    </Button>
-                    <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
-                </div>
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="displayName">Display Name</Label>
-                        <Input id="displayName" value={name} onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
-                        <Input id="email" value={userProfile?.email || ''} readOnly disabled />
-                    </div>
-                </div>
-            </CardContent>
-            <CardFooter className="border-t pt-6">
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
-                    {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Profile
-                </Button>
-            </CardFooter>
-        </Card>
+        <ProfileEditor userProfile={userProfile} onProfileUpdate={() => {
+            fetchData();
+            router.refresh();
+        }} />
 
-      {isManager ? (
+      {isManager && messData ? (
         <>
             <Card>
                 <CardHeader>
@@ -521,15 +456,17 @@ export default function SettingsPage() {
             </Card>
         </>
       ) : (
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">Mess Settings</CardTitle>
-                <CardDescription>Settings for your mess.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p>You do not have permission to view or edit Mess settings. Please contact your mess manager for assistance.</p>
-            </CardContent>
-        </Card>
+        !loading && messData && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">Mess Settings</CardTitle>
+                    <CardDescription>These settings are only available to the mess manager.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p>You do not have permission to view or edit Mess settings. Please contact your mess manager for assistance.</p>
+                </CardContent>
+            </Card>
+        )
       )}
     </div>
   );
