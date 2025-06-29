@@ -1352,6 +1352,60 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
     });
 };
 
+export const deleteMess = async (messId: string) => {
+    if (!db || !auth?.currentUser) throw new Error("Authentication required.");
+
+    const batch = writeBatch(db);
+    const messRef = doc(db, 'messes', messId);
+
+    // Verify the user is the manager
+    const messSnap = await getDoc(messRef);
+    if (!messSnap.exists() || messSnap.data().managerId !== auth.currentUser.uid) {
+        throw new Error("You are not authorized to delete this mess.");
+    }
+
+    // 1. Get all members to update their user profiles and delete their subcollections
+    const membersColRef = collection(db, 'messes', messId, 'members');
+    const membersSnap = await getFirestoreDocs(membersColRef);
+    for (const memberDoc of membersSnap.docs) {
+        const memberId = memberDoc.id;
+        
+        // Delete member's 'meals' subcollection documents
+        const mealsColRef = collection(db, 'messes', messId, 'members', memberId, 'meals');
+        const mealsSnap = await getFirestoreDocs(mealsColRef);
+        mealsSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+        // Delete the member document itself from the 'members' subcollection
+        batch.delete(memberDoc.ref);
+        
+        // Update the user's main profile in the 'users' collection to clear mess details
+        const userRef = doc(db, 'users', memberId);
+        batch.update(userRef, { messId: '', role: '' });
+    }
+
+    // 2. Delete documents in other top-level subcollections
+    const subcollectionsToDelete = [
+        'expenses',
+        'deposits',
+        'pendingExpenses',
+        'pendingDeposits',
+        'notifications',
+        'guestMealLog'
+    ];
+
+    for (const subcol of subcollectionsToDelete) {
+        const subcolRef = collection(db, 'messes', messId, subcol);
+        const subcolSnap = await getFirestoreDocs(subcolRef);
+        subcolSnap.docs.forEach(doc => batch.delete(doc.ref));
+    }
+
+    // 3. Finally, delete the mess document itself
+    batch.delete(messRef);
+
+    // 4. Commit the entire batch
+    await batch.commit();
+};
+
 
 // --- Reporting ---
 

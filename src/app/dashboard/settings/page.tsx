@@ -34,6 +34,7 @@ import {
     removeMemberFromMess,
     updateUserProfile,
     updateMessName,
+    deleteMess,
     type UserProfile as AppUserProfile, 
     type MealSettings,
     type Member
@@ -68,6 +69,7 @@ export default function SettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [transferInput, setTransferInput] = useState("");
+    const [deleteInput, setDeleteInput] = useState("");
     const [mealSettings, setMealSettings] = useState<MealSettings>({
         breakfastCutoff: "02:00",
         lunchCutoff: "13:00",
@@ -193,6 +195,21 @@ export default function SettingsPage() {
             toast({ title: "Error", description: error.message || "Failed to remove member.", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteMess = async () => {
+        if (!messData?.id) return;
+        setIsSubmitting(true);
+        try {
+            await deleteMess(messData.id);
+            toast({ title: "Success!", description: "The mess has been permanently deleted." });
+            router.push('/welcome');
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message || "Failed to delete the mess.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+            setDeleteInput("");
         }
     };
 
@@ -469,7 +486,37 @@ export default function SettingsPage() {
                         <p className="font-medium">Delete this Mess</p>
                         <p className="text-sm text-muted-foreground">Once you delete a Mess, there is no going back. Please be certain.</p>
                     </div>
-                    <Button variant="destructive">Delete Mess</Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive">Delete Mess</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the <strong>{messData?.name}</strong> mess and all of its data.
+                                    <br/><br/>
+                                    To confirm, please type <strong>DELETE</strong> in the box below.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <Input 
+                                placeholder="Type DELETE to confirm" 
+                                value={deleteInput}
+                                onChange={(e) => setDeleteInput(e.target.value)}
+                            />
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    disabled={deleteInput !== "DELETE" || isSubmitting}
+                                    onClick={handleDeleteMess}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    I understand, delete this mess
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </CardContent>
             </Card>
         </>
