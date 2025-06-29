@@ -1091,7 +1091,7 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
             guestDinner: data.guestDinner ?? 0,
         };
     } else {
-        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 };
+        return { breakfast: 0, lunch: 0, dinner: 0, guestBreakfast: 0, guestLunch: 0, guestDinner: 0, isSetByUser: false };
     }
 }
 
@@ -1109,20 +1109,20 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
+        const oldMealData: MealStatus = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, guestBreakfast: 0, guestLunch: 0, guestDinner: 0, isSetByUser: false };
         
-        // This logic handles only the personal meals, not guest meals, for meal count changes.
-        const oldPersonalTotal = (oldMealData.breakfast ?? 0) + (oldMealData.lunch ?? 0) + (oldMealData.dinner ?? 0);
+        const oldTotalMeals = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0) + (oldMealData.guestBreakfast || 0) + (oldMealData.guestLunch || 0) + (oldMealData.guestDinner || 0);
         
         const newMealData = { ...oldMealData, ...newMeals };
-        const newPersonalTotal = (newMealData.breakfast ?? 0) + (newMealData.lunch ?? 0) + (newMealData.dinner ?? 0);
+        
+        const newTotalMeals = (newMealData.breakfast || 0) + (newMealData.lunch || 0) + (newMealData.dinner || 0) + (newMealData.guestBreakfast || 0) + (newMealData.guestLunch || 0) + (newMealData.guestDinner || 0);
 
-        const mealCountChange = newPersonalTotal - oldPersonalTotal;
+        const mealCountChange = newTotalMeals - oldTotalMeals;
         
         if (mealCountChange !== 0) {
             const currentTotalMeals = memberDoc.data().meals || 0;
-            const newTotalMeals = currentTotalMeals + mealCountChange;
-            transaction.update(memberRef, { meals: newTotalMeals });
+            const updatedTotalMemberMeals = currentTotalMeals + mealCountChange;
+            transaction.update(memberRef, { meals: updatedTotalMemberMeals });
         }
         
         transaction.set(mealDocRef, newMeals, { merge: true });

@@ -33,7 +33,7 @@ interface AddMealRecordDialogProps {
 
 export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, memberName, onSuccess, initialDate }: AddMealRecordDialogProps) {
   const [date, setDate] = useState<Date | undefined>();
-  const [meals, setMeals] = useState<MealStatus>({ breakfast: 0, lunch: 0, dinner: 0 });
+  const [meals, setMeals] = useState<MealStatus>({ breakfast: 0, lunch: 0, dinner: 0, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 });
   const [submitting, setSubmitting] = useState(false);
   const [loadingDate, setLoadingDate] = useState(false);
   const { toast } = useToast();
@@ -103,7 +103,7 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
             Manually set meal counts for {memberName} on a specific date.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-6 py-4">
             <div className="grid gap-2">
               <Label htmlFor="meal-date">Date</Label>
               <Popover>
@@ -132,19 +132,40 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
               </Popover>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="breakfast" className="text-center">Breakfast</Label>
-                <Input id="breakfast" type="number" step="0.5" min="0" value={meals.breakfast} onChange={e => handleMealChange('breakfast', e.target.value)} className="text-center" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="lunch" className="text-center">Lunch</Label>
-                <Input id="lunch" type="number" step="0.5" min="0" value={meals.lunch} onChange={e => handleMealChange('lunch', e.target.value)} className="text-center" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="dinner" className="text-center">Dinner</Label>
-                <Input id="dinner" type="number" step="0.5" min="0" value={meals.dinner} onChange={e => handleMealChange('dinner', e.target.value)} className="text-center" />
-              </div>
+            <div className="grid gap-2">
+                <Label>Personal Meals</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="breakfast" className="text-center">Breakfast</Label>
+                    <Input id="breakfast" type="number" step="0.5" min="0" value={meals.breakfast || ''} onChange={e => handleMealChange('breakfast', e.target.value)} className="text-center" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="lunch" className="text-center">Lunch</Label>
+                    <Input id="lunch" type="number" step="0.5" min="0" value={meals.lunch || ''} onChange={e => handleMealChange('lunch', e.target.value)} className="text-center" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dinner" className="text-center">Dinner</Label>
+                    <Input id="dinner" type="number" step="0.5" min="0" value={meals.dinner || ''} onChange={e => handleMealChange('dinner', e.target.value)} className="text-center" />
+                  </div>
+                </div>
+            </div>
+
+             <div className="grid gap-2">
+                <Label>Guest Meals</Label>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="guest-breakfast" className="text-center">Breakfast</Label>
+                    <Input id="guest-breakfast" type="number" step="0.5" min="0" value={meals.guestBreakfast || ''} onChange={e => handleMealChange('guestBreakfast', e.target.value)} className="text-center" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="guest-lunch" className="text-center">Lunch</Label>
+                    <Input id="guest-lunch" type="number" step="0.5" min="0" value={meals.guestLunch || ''} onChange={e => handleMealChange('guestLunch', e.target.value)} className="text-center" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="guest-dinner" className="text-center">Dinner</Label>
+                    <Input id="guest-dinner" type="number" step="0.5" min="0" value={meals.guestDinner || ''} onChange={e => handleMealChange('guestDinner', e.target.value)} className="text-center" />
+                  </div>
+                </div>
             </div>
         </div>
         <DialogFooter>
