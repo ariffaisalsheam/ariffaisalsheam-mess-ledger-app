@@ -1,3 +1,4 @@
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -7,7 +8,10 @@ import {
   collection,
   updateDoc,
   serverTimestamp,
-  getDocs,
+  getDocs as getFirestoreDocs,
+  query,
+  where,
+  limit,
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -51,21 +55,25 @@ export const upsertUser = async (user: FirebaseUser) => {
 export const createMess = async (messName: string, user: FirebaseUser) => {
   if (!db) throw new Error("Firestore not initialized");
 
-  // 1. Create the mess document
+  // 1. Generate a simple unique invite code
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+  // 2. Create the mess document
   const messRef = await addDoc(collection(db, 'messes'), {
     name: messName,
     managerId: user.uid,
     createdAt: serverTimestamp(),
+    inviteCode: inviteCode,
   });
 
-  // 2. Update the user's profile with the new messId and role
+  // 3. Update the user's profile with the new messId and role
   const userRef = doc(db, 'users', user.uid);
   await updateDoc(userRef, {
     messId: messRef.id,
     role: 'manager',
   });
 
-  // 3. Add user as the first member (manager) of the mess
+  // 4. Add user as the first member (manager) of the mess
   const memberRef = doc(db, 'messes', messRef.id, 'members', user.uid);
   await setDoc(memberRef, {
       name: user.displayName,
@@ -75,6 +83,46 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
 
   return messRef.id;
 };
+
+// Join a mess using an invite code
+export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUser) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    // 1. Find the mess with the given invite code
+    const messesRef = collection(db, 'messes');
+    const q = query(messesRef, where("inviteCode", "==", inviteCode.toUpperCase()), limit(1));
+    const querySnapshot = await getFirestoreDocs(q);
+
+    if (querySnapshot.empty) {
+        throw new Error("Invalid invite code. No mess found.");
+    }
+
+    const messDoc = querySnapshot.docs[0];
+    const messId = messDoc.id;
+
+    // 2. Check if user is already in a mess
+    const userProfile = await getUserProfile(user.uid);
+    if (userProfile?.messId) {
+        throw new Error("You are already a member of a mess.");
+    }
+    
+    // 3. Update the user's profile with the new messId and role
+    const userRef = doc(db, 'users', user.uid);
+    await updateDoc(userRef, {
+        messId: messId,
+        role: 'member',
+    });
+
+    // 4. Add user as a new member of the mess
+    const memberRef = doc(db, 'messes', messId, 'members', user.uid);
+    await setDoc(memberRef, {
+        name: user.displayName,
+        email: user.email,
+        role: 'member',
+    });
+
+    return messId;
+}
 
 // Get user profile from Firestore
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
@@ -103,7 +151,7 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
     if (!db) throw new Error("Firestore not initialized");
 
     const membersColRef = collection(db, 'messes', messId, 'members');
-    const membersSnap = await getDocs(membersColRef);
+    const membersSnap = await getFirestoreDocs(membersColRef);
     const memberDocs = membersSnap.docs;
 
     const userProfilePromises = memberDocs.map(doc => getUserProfile(doc.id));
