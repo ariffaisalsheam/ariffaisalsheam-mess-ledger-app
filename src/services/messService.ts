@@ -162,15 +162,20 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         q = query(notificationsRef, where('userId', '==', userId));
     }
     
-    const finalQuery = query(q, orderBy('timestamp', 'desc'));
-
-    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
         const filtered = notifications.filter(n => n.timestamp && n.timestamp.toDate() > thirtyDaysAgo);
         
+        // Sort client-side to avoid needing a composite index
+        filtered.sort((a, b) => {
+            const dateA = a.timestamp?.toDate()?.getTime() || 0;
+            const dateB = b.timestamp?.toDate()?.getTime() || 0;
+            return dateB - dateA;
+        });
+
         callback(filtered);
     }, (error) => console.error("Error on notifications snapshot:", error));
 
@@ -1132,13 +1137,18 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
     const querySnapshot = await getFirestoreDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const ledger = querySnapshot.docs.map(doc => ({
         date: doc.id,
         ...(doc.data() as MealStatus)
     }));
+
+    // Sort client-side to avoid needing a composite index
+    ledger.sort((a, b) => b.date.localeCompare(a.date));
+
+    return ledger;
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
