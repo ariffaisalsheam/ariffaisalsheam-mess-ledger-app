@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'KhanaConnect',
-  description: 'The smart way to manage your mess.',
+  title: 'Xapps',
+  description: 'Your all-in-one solution.',
 };
 
 export default function RootLayout({

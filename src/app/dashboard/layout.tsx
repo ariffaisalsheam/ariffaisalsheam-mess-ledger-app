@@ -73,7 +73,7 @@ export default function DashboardLayout({
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
               <Logo />
-              <span className="font-headline text-lg">KhanaConnect</span>
+              <span className="font-headline text-lg">Xapps</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -122,7 +122,7 @@ export default function DashboardLayout({
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
                 >
                   <Logo/>
-                  <span className="sr-only">KhanaConnect</span>
+                  <span className="sr-only">Xapps</span>
                 </Link>
                 {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
                  {user.role === 'manager' && managerNavItems.map(item => (
