@@ -179,14 +179,15 @@ export default function DashboardLayout({
     }
   };
 
-  const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => {
+  const NavLink = ({ href, children, className }: { href: string; children: React.ReactNode, className?: string }) => {
     const isActive = pathname === href;
     return (
       <Link
         href={href}
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-          isActive && "bg-primary/10 text-primary font-semibold"
+          isActive && "bg-primary/10 text-primary font-semibold",
+          className
         )}
       >
         {children}
@@ -195,17 +196,17 @@ export default function DashboardLayout({
   };
   
   const navItems = [
-    { href: "/dashboard", icon: <Home className="h-4 w-4" />, label: "Dashboard" },
-    { href: "/dashboard/meals", icon: <Utensils className="h-4 w-4" />, label: "Meals" },
-    { href: "/dashboard/members", icon: <Users className="h-4 w-4" />, label: "Members" },
-    { href: "/dashboard/ledger", icon: <BookOpen className="h-4 w-4" />, label: "Meal Ledger" },
-    { href: "/dashboard/transactions", icon: <Receipt className="h-4 w-4" />, label: "Transactions" },
-    { href: "/dashboard/reports", icon: <ClipboardList className="h-4 w-4" />, label: "Reports" },
-    { href: "/dashboard/settings", icon: <Settings className="h-4 w-4" />, label: "Settings" },
+    { href: "/dashboard", icon: <Home className="h-5 w-5" />, label: "Dashboard" },
+    { href: "/dashboard/meals", icon: <Utensils className="h-5 w-5" />, label: "Meals" },
+    { href: "/dashboard/members", icon: <Users className="h-5 w-5" />, label: "Members" },
+    { href: "/dashboard/ledger", icon: <BookOpen className="h-5 w-5" />, label: "Meal Ledger" },
+    { href: "/dashboard/transactions", icon: <Receipt className="h-5 w-5" />, label: "Transactions" },
+    { href: "/dashboard/reports", icon: <ClipboardList className="h-5 w-5" />, label: "Reports" },
+    { href: "/dashboard/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
   ];
 
   const managerNavItems = [
-    { href: "/dashboard/review", icon: <CheckSquare className="h-4 w-4" />, label: "Review", badge: pendingReviews },
+    { href: "/dashboard/review", icon: <CheckSquare className="h-5 w-5" />, label: "Review", badge: pendingReviews },
   ];
   
   const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
@@ -312,23 +313,50 @@ export default function DashboardLayout({
                 <span className="sr-only">Toggle navigation menu</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col">
-              <nav className="grid gap-2 text-lg font-medium">
-                <Link
-                  href="#"
-                  className="flex items-center gap-2 text-lg font-semibold mb-4"
-                >
-                  <Logo/>
-                  <span className="sr-only">{messName}</span>
-                </Link>
-                {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
-                 {userProfile?.role === 'manager' && managerNavItems.map(item => (
-                    <NavLink key={item.href} href={item.href}>
-                        {item.icon}{item.label}
-                        {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
-                    </NavLink>
-                ))}
-              </nav>
+            <SheetContent side="left" className="flex flex-col p-0">
+               <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+                    <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+                        <Logo />
+                        <span className="font-headline text-lg">{messName}</span>
+                    </Link>
+                </div>
+              <div className="flex-1 overflow-y-auto">
+                <nav className="grid gap-2 p-4 text-lg font-medium">
+                  {navItems.map(item => <NavLink key={item.href} href={item.href} className="py-3 text-base">{item.icon}{item.label}</NavLink>)}
+                  {userProfile?.role === 'manager' && managerNavItems.map(item => (
+                      <NavLink key={item.href} href={item.href} className="py-3 text-base">
+                          {item.icon}{item.label}
+                          {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
+                      </NavLink>
+                  ))}
+                </nav>
+              </div>
+              <div className="mt-auto p-4 space-y-4 border-t">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Your Total Meals</CardTitle>
+                        <Utensils className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                        <div className="text-2xl font-bold">
+                            {userMeals.toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Your meals this month</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Your Balance</CardTitle>
+                        <Wallet className="h-4 w-4 text-muted-foreground"/>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                        <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                            {userBalance >= 0 ? '+' : ''}৳{Math.abs(userBalance).toFixed(2)}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Your current account standing</p>
+                    </CardContent>
+                </Card>
+              </div>
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
