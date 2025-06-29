@@ -111,14 +111,7 @@ export default function DashboardLayout({
                     memberDetailsUnsubscribe = onMemberDetailsChange(profile.messId, authUser.uid, setMemberDetails);
                     
                     if (profile.role) {
-                         notificationsUnsubscribe = onNotificationsChange(profile.messId, authUser.uid, profile.role, (newNotifications) => {
-                            const thirtyDaysAgo = new Date();
-                            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-                            
-                            const filtered = newNotifications.filter(n => n.timestamp && n.timestamp.toDate() > thirtyDaysAgo);
-                            
-                            setNotifications(filtered);
-                        });
+                         notificationsUnsubscribe = onNotificationsChange(profile.messId, authUser.uid, profile.role, setNotifications);
                     }
 
                     if (profile.role === 'manager') {
@@ -127,7 +120,13 @@ export default function DashboardLayout({
                     setLoading(false);
 
                 } else {
-                    router.push('/welcome');
+                    // Allow access to settings page even without a mess
+                    if (pathname !== '/dashboard/settings') {
+                        router.push('/welcome');
+                    } else {
+                        setMessName("No Mess");
+                        setLoading(false);
+                    }
                 }
             } else {
                 console.error("User profile not found in Firestore.");
@@ -147,7 +146,7 @@ export default function DashboardLayout({
       pendingItemsUnsubscribe?.();
       notificationsUnsubscribe?.();
     };
-  }, [authUser, router]);
+  }, [authUser, router, pathname]);
   
   useEffect(() => {
     let title: string;
