@@ -3,6 +3,7 @@
 
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -551,7 +552,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     if (!db) throw new Error("Firestore not initialized");
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
-    const q = query(mealsColRef, orderBy('__name__', 'desc'), limit(days));
+    const q = query(mealsColRef, orderBy('__name__', 'asc'));
     const querySnapshot = await getFirestoreDocs(q);
 
     const ledger: MealLedgerEntry[] = [];
@@ -562,7 +563,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    return ledger;
+    return ledger.slice(-days).reverse();
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
