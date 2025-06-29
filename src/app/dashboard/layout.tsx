@@ -182,7 +182,7 @@ export default function DashboardLayout({
         href={href}
         className={cn(
           "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
-          isActive && "bg-secondary text-primary"
+          isActive && "bg-primary/10 text-primary font-semibold"
         )}
       >
         {children}
@@ -262,7 +262,7 @@ export default function DashboardLayout({
               {userProfile?.role === 'manager' && managerNavItems.map(item => (
                 <NavLink key={item.href} href={item.href}>
                   {item.icon}{item.label}
-                  {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">{item.badge}</Badge>}
+                  {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
                 </NavLink>
               ))}
             </nav>
@@ -287,7 +287,7 @@ export default function DashboardLayout({
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
                     <div className={`text-2xl font-bold ${userBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
-                        {userBalance >= 0 ? '+' : '-'}৳{Math.abs(userBalance).toFixed(2)}
+                        {userBalance >= 0 ? '+' : ''}৳{Math.abs(userBalance).toFixed(2)}
                     </div>
                     <p className="text-xs text-muted-foreground">Your current account standing</p>
                 </CardContent>
@@ -321,7 +321,7 @@ export default function DashboardLayout({
                  {userProfile?.role === 'manager' && managerNavItems.map(item => (
                     <NavLink key={item.href} href={item.href}>
                         {item.icon}{item.label}
-                        {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">{item.badge}</Badge>}
+                        {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
                     </NavLink>
                 ))}
               </nav>
@@ -332,7 +332,7 @@ export default function DashboardLayout({
           </div>
           <Popover>
             <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="h-8 w-8 relative">
+                <Button variant="ghost" size="icon" className="h-8 w-8 relative rounded-full">
                     <Bell className="h-4 w-4" />
                     {unreadNotificationCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-white">
@@ -397,8 +397,8 @@ export default function DashboardLayout({
           </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <Avatar className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+                <Avatar className="h-10 w-10">
                     <AvatarImage src={userProfile?.photoURL ?? "https://placehold.co/40x40.png"} alt={userProfile?.displayName ?? "User"} data-ai-hint="man portrait"/>
                     <AvatarFallback>{userProfile?.displayName?.substring(0, 2).toUpperCase() ?? "U"}</AvatarFallback>
                 </Avatar>
@@ -418,13 +418,13 @@ export default function DashboardLayout({
                 <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive">
                 <LogOut className="mr-2 h-4 w-4"/>Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background">
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6">
           {children}
         </main>
       </div>

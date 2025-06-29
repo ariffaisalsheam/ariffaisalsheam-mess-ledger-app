@@ -95,12 +95,12 @@ export default function SignupPage() {
 
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
-      <Card className="mx-auto w-full max-w-sm">
+      <Card className="mx-auto w-full max-w-sm border-0 shadow-lg md:border">
         <CardHeader className="text-center">
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardTitle className="text-2xl font-headline">KhanaConnect</CardTitle>
             <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>

@@ -79,12 +79,12 @@ export default function CreateMessPage() {
           </Button>
         </Link>
       </div>
-      <Card className="mx-auto w-full max-w-sm">
+      <Card className="mx-auto w-full max-w-sm border-0 shadow-lg md:border">
         <CardHeader className="text-center">
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardTitle className="text-2xl font-headline">KhanaConnect</CardTitle>
             <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
         </CardHeader>
         <CardContent>

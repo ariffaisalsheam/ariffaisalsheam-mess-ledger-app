@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Camera } from "lucide-react";
+import { Loader2, Camera, Save } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from '@/hooks/use-toast';
 import { updateUserProfile, type UserProfile as AppUserProfile } from '@/services/messService';
@@ -58,6 +58,8 @@ export function ProfileEditor({ userProfile, onProfileUpdate, onSaveComplete }: 
             setIsSavingProfile(false);
         }
     };
+    
+    const hasChanges = (userProfile?.displayName !== name) || imageFile !== null;
 
     if (!userProfile) {
         return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -98,9 +100,9 @@ export function ProfileEditor({ userProfile, onProfileUpdate, onSaveComplete }: 
                 </div>
             </CardContent>
             <CardFooter className="border-t pt-6">
-                <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
-                    {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Profile
+                <Button onClick={handleSaveProfile} disabled={isSavingProfile || !hasChanges}>
+                    {isSavingProfile ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Save Changes
                 </Button>
             </CardFooter>
         </Card>

@@ -78,8 +78,8 @@ export default function WelcomePage() {
           <div className="absolute top-4 right-4">
               <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="icon" className="rounded-full">
-                          <Avatar className="h-8 w-8">
+                      <Button variant="ghost" size="icon" className="rounded-full h-10 w-10">
+                          <Avatar className="h-10 w-10">
                               <AvatarImage src={userProfile?.photoURL ?? "https://placehold.co/40x40.png"} alt={userProfile?.displayName ?? "User"} data-ai-hint="person portrait" />
                               <AvatarFallback>{userProfile?.displayName?.substring(0, 2).toUpperCase() ?? "U"}</AvatarFallback>
                           </Avatar>
@@ -107,33 +107,39 @@ export default function WelcomePage() {
               </DropdownMenu>
           </div>
 
-          <Card className="w-full max-w-lg">
+          <Card className="w-full max-w-lg border-0 shadow-lg md:border">
             <CardHeader className="text-center p-6">
                 <div className="mx-auto mb-4">
                     <Logo />
                 </div>
-                <CardTitle className="font-headline text-3xl">Mess Ledger</CardTitle>
+                <CardTitle className="font-headline text-3xl">Welcome to KhanaConnect</CardTitle>
                 <CardDescription>
-                    Welcome, <span className="font-semibold text-foreground">{userProfile?.displayName || 'Friend'}</span>! You're not part of a mess yet. Create one or join an existing one to get started.
+                    You're not part of a mess yet, <span className="font-semibold text-foreground">{userProfile?.displayName || 'Friend'}</span>!
+                    <br/>
+                    Create one or join an existing one to get started.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 pt-2 flex flex-col gap-4">
+            <CardContent className="p-6 pt-2 flex flex-col md:flex-row gap-4">
                 <Link href="/create-mess" className="w-full">
-                    <Button className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02]">
-                        <div className="flex items-center gap-3">
-                            <PlusCircle className="h-5 w-5"/>
-                            <span className="font-bold text-base">Create a New Mess</span>
+                    <Button className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
+                        <div>
+                            <div className="flex items-center gap-3">
+                                <PlusCircle className="h-5 w-5"/>
+                                <span className="font-bold text-base">Create a New Mess</span>
+                            </div>
+                            <span className="text-sm font-normal text-primary-foreground/80 pl-8">Start from scratch and invite friends.</span>
                         </div>
-                        <span className="text-sm font-normal text-primary-foreground/80 pl-8">Start from scratch and invite friends.</span>
                     </Button>
                 </Link>
                 <Link href="/join-mess" className="w-full">
-                    <Button variant="secondary" className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02]">
-                        <div className="flex items-center gap-3">
-                            <Users className="h-5 w-5"/>
-                            <span className="font-bold text-base">Join an Existing Mess</span>
+                    <Button variant="secondary" className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
+                         <div>
+                            <div className="flex items-center gap-3">
+                                <Users className="h-5 w-5"/>
+                                <span className="font-bold text-base">Join an Existing Mess</span>
+                            </div>
+                            <span className="text-sm font-normal text-secondary-foreground/80 pl-8">Use an invite code to join a mess.</span>
                         </div>
-                        <span className="text-sm font-normal text-secondary-foreground/80 pl-8">Use an invite code to join a mess.</span>
                     </Button>
                 </Link>
             </CardContent>

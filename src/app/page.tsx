@@ -10,7 +10,7 @@ export default function SplashPage() {
   useEffect(() => {
     const timer = setTimeout(() => {
       router.push("/login");
-    }, 5000); // 5-second delay
+    }, 2500); // 2.5-second delay
 
     return () => clearTimeout(timer); // Cleanup the timer
   }, [router]);
@@ -20,7 +20,7 @@ export default function SplashPage() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo />
         <h1 className="text-5xl font-bold font-headline text-primary">
-          Mess Ledger
+          KhanaConnect
         </h1>
         <p className="text-lg font-semibold text-muted-foreground">
           Transparent Tracking, Effortless Settlement

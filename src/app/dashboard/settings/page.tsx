@@ -17,9 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Copy, Share2, UserCog, ShieldAlert, Loader2, Save } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -30,7 +28,6 @@ import {
     updateMealSettings, 
     getMembersOfMess,
     transferManagerRole,
-    removeMemberFromMess,
     updateMessName,
     deleteMess,
     type UserProfile as AppUserProfile, 
@@ -151,7 +148,7 @@ export default function SettingsPage() {
         try {
             await updateMessName(messData.id, messName.trim());
             toast({ title: "Success!", description: "Mess name has been updated." });
-            router.refresh(); 
+            fetchData();
         } catch (error) {
             console.error("Failed to save mess name:", error);
             toast({ title: "Error", description: "Could not save mess name.", variant: "destructive" });
@@ -184,20 +181,6 @@ export default function SettingsPage() {
         }
     };
 
-    const handleRemoveMember = async (memberId: string, memberName: string) => {
-        if (!messData?.id) return;
-        setIsSubmitting(true);
-        try {
-            await removeMemberFromMess(messData.id, memberId);
-            toast({ title: "Success!", description: `${memberName} has been removed from the mess.` });
-            fetchData();
-        } catch (error: any) {
-            toast({ title: "Error", description: error.message || "Failed to remove member.", variant: "destructive" });
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
     const handleDeleteMess = async () => {
         if (!messData?.id) return;
         setIsSubmitting(true);
@@ -227,7 +210,6 @@ export default function SettingsPage() {
     <div className="space-y-8">
         <ProfileEditor userProfile={userProfile} onProfileUpdate={() => {
             fetchData();
-            router.refresh();
         }} />
 
       {isManager && messData ? (
@@ -245,14 +227,14 @@ export default function SettingsPage() {
                     <div className="space-y-2">
                         <Label htmlFor="invite-code">Mess Invite Code</Label>
                         <div className="flex gap-2">
-                            <Input id="invite-code" readOnly value={messData?.inviteCode || 'N/A'} />
+                            <Input id="invite-code" readOnly value={messData?.inviteCode || 'N/A'} className="font-mono tracking-widest" />
                             <Button variant="outline" size="icon" onClick={handleCopy} disabled={!messData?.inviteCode}><Copy className="h-4 w-4" /></Button>
                             <Button variant="outline" size="icon"><Share2 className="h-4 w-4" /></Button>
                         </div>
                     </div>
                 </CardContent>
                 <CardFooter className="border-t pt-6">
-                    <Button onClick={handleSaveMessName} disabled={isSavingMessName}>
+                    <Button onClick={handleSaveMessName} disabled={isSavingMessName || messName.trim() === messData.name}>
                         {isSavingMessName ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                         Save Mess Name
                     </Button>
@@ -322,93 +304,48 @@ export default function SettingsPage() {
 
             <Card>
                 <CardHeader>
-                <CardTitle className="font-headline">Member Management</CardTitle>
-                <CardDescription>Transfer manager role or remove members from the mess.</CardDescription>
+                <CardTitle className="font-headline">Manager Transfer</CardTitle>
+                <CardDescription>Transfer manager role to another member of the mess. This action cannot be undone.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Member</TableHead>
-                                <TableHead className="text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {members.map(member => (
-                                <TableRow key={member.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar>
-                                                <AvatarImage src={member.avatar} alt={member.name} data-ai-hint="person portrait"/>
-                                                <AvatarFallback>{member.name.substring(0,2).toUpperCase()}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="font-medium">{member.name}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right space-x-2">
-                                        <AlertDialog onOpenChange={() => setTransferInput("")}>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="outline" size="sm" disabled={isSubmitting}>
-                                                    <UserCog className="mr-2 h-4 w-4"/> Make Manager
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                <AlertDialogTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 text-yellow-500" />Transfer Manager Role?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    You are about to make <strong>{member.name}</strong> the new manager. You will immediately lose all manager privileges. This action cannot be undone.
-                                                    <br/><br/>
-                                                    To confirm, please type <strong>TRANSFER</strong> in the box below.
-                                                </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <Input 
-                                                    placeholder="Type TRANSFER to confirm" 
-                                                    value={transferInput}
-                                                    onChange={(e) => setTransferInput(e.target.value)}
-                                                />
-                                                <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction 
-                                                    disabled={transferInput !== "TRANSFER" || isSubmitting}
-                                                    onClick={() => handleTransferManager(member.id, member.name)}>
-                                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                    Confirm Transfer
-                                                </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                        
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="destructive" size="sm" disabled={isSubmitting}>
-                                                    <UserMinus className="mr-2 h-4 w-4"/> Remove
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle className="font-headline">Remove {member.name}?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        Are you sure you want to remove <strong>{member.name}</strong> from the mess? This action cannot be undone.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction 
-                                                        onClick={() => handleRemoveMember(member.id, member.name)}
-                                                        disabled={isSubmitting}
-                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                    >
-                                                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                                        Confirm Removal
-                                                    </AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                   {members.length > 0 ? members.map(member => (
+                        <div key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
+                             <p className="font-medium">{member.name}</p>
+                             <AlertDialog onOpenChange={() => setTransferInput("")}>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm" disabled={isSubmitting}>
+                                        <UserCog className="mr-2 h-4 w-4"/> Make Manager
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 text-yellow-500" />Transfer Manager Role?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        You are about to make <strong>{member.name}</strong> the new manager. You will immediately lose all manager privileges. This action cannot be undone.
+                                        <br/><br/>
+                                        To confirm, please type <strong>TRANSFER</strong> in the box below.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <Input 
+                                        placeholder="Type TRANSFER to confirm" 
+                                        value={transferInput}
+                                        onChange={(e) => setTransferInput(e.target.value)}
+                                    />
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                        disabled={transferInput !== "TRANSFER" || isSubmitting}
+                                        onClick={() => handleTransferManager(member.id, member.name)}>
+                                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Confirm Transfer
+                                    </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                   )) : (
+                       <p className="text-sm text-muted-foreground text-center py-4">There are no other members to transfer the role to.</p>
+                   )}
                 </CardContent>
             </Card>
 
