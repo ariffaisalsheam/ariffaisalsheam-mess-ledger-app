@@ -20,10 +20,10 @@ export default function SplashPage() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo />
         <h1 className="text-5xl font-bold font-headline text-primary">
-          KhanaConnect
+          Mess Ledger
         </h1>
         <p className="text-lg font-semibold text-muted-foreground">
-          by Xapps
+          Transparent Tracking, Effortless Settlement.
         </p>
       </div>
       <div className="absolute bottom-4 text-center text-sm text-muted-foreground">

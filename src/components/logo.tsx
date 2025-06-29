@@ -5,14 +5,17 @@ export function Logo(props: SVGProps<SVGSVGElement>) {
     <svg
       width="40"
       height="40"
-      viewBox="0 0 40 40"
+      viewBox="0 0 24 24"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       {...props}
     >
-        <path d="M10 10L30 30" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M30 10L10 30" stroke="hsl(var(--primary))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M20 5C28.2843 5 35 11.7157 35 20C35 28.2843 28.2843 35 20 35C11.7157 35 5 28.2843 5 20C5 11.7157 11.7157 5 20 5Z" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeDasharray="2 2"/>
+        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <line x1="6" y1="7" x2="10" y2="7" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="14" y1="7" x2="18" y2="7" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="6" y1="11" x2="10" y2="11" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round"/>
+        <line x1="14" y1="11" x2="18" y2="11" stroke="hsl(var(--primary))" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
 }

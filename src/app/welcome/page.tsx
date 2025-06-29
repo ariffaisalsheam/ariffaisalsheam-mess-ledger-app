@@ -109,7 +109,7 @@ export default function WelcomePage() {
 
           <div className="mb-8 flex flex-col items-center text-center">
               <Logo />
-              <h1 className="mt-4 text-4xl font-bold font-headline text-primary">Welcome{userProfile?.displayName ? `, ${userProfile.displayName}` : ' to KhanaConnect'}!</h1>
+              <h1 className="mt-4 text-4xl font-bold font-headline text-primary">Welcome{userProfile?.displayName ? `, ${userProfile.displayName}` : ' to Mess Ledger'}!</h1>
               <p className="mt-2 text-lg text-muted-foreground">Let's get you set up. What would you like to do?</p>
           </div>
           <div className="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
