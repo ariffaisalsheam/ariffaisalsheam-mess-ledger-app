@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { UserCog, Loader2 } from "lucide-react";
 import { MemberList } from './member-list';
-import { getMembersOfMess, getUserProfile } from '@/services/messService';
-import type { Member, UserProfile } from '@/services/messService';
+import { getMembersOfMess, getUserProfile, getTodaysMealStatusesForMess } from '@/services/messService';
+import type { Member, UserProfile, MealStatus } from '@/services/messService';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -14,8 +14,10 @@ import { useRouter } from 'next/navigation';
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [mealStatuses, setMealStatuses] = useState<Record<string, MealStatus>>({});
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [authUser, setAuthUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (!auth) {
@@ -25,18 +27,7 @@ export default function MembersPage() {
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        getUserProfile(user.uid).then(profile => {
-          setUserProfile(profile);
-          if (profile && profile.messId) {
-            getMembersOfMess(profile.messId).then(fetchedMembers => {
-              setMembers(fetchedMembers);
-              setLoading(false);
-            });
-          } else {
-            // Not in a mess, or no profile
-            router.push('/welcome');
-          }
-        });
+        setAuthUser(user);
       } else {
         router.push('/login');
       }
@@ -44,6 +35,31 @@ export default function MembersPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  useEffect(() => {
+    if (!authUser) return;
+
+    setLoading(true);
+    getUserProfile(authUser.uid).then(profile => {
+      setUserProfile(profile);
+      if (profile && profile.messId) {
+        Promise.all([
+          getMembersOfMess(profile.messId),
+          getTodaysMealStatusesForMess(profile.messId)
+        ]).then(([fetchedMembers, fetchedStatuses]) => {
+          setMembers(fetchedMembers);
+          setMealStatuses(fetchedStatuses);
+          setLoading(false);
+        }).catch(err => {
+            console.error("Failed to load members page data", err);
+            setLoading(false);
+        });
+      } else {
+        // Not in a mess, or no profile
+        router.push('/welcome');
+      }
+    });
+  }, [authUser, router]);
 
   if (loading) {
     return (
@@ -60,7 +76,14 @@ export default function MembersPage() {
           <UserCog className="mr-2 h-4 w-4" /> Invite New Member
         </Button>
       </div>
-      {userProfile?.messId && <MemberList members={members} messId={userProfile.messId} />}
+      {userProfile?.messId && (
+        <MemberList 
+          members={members} 
+          messId={userProfile.messId}
+          currentUserProfile={userProfile}
+          initialMealStatuses={mealStatuses}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -512,8 +513,17 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
         if (!memberDoc.exists()) {
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
-
-        const currentStatus = mealDoc.exists() ? mealDoc.data()[meal] as boolean : false;
+        
+        // Ensure meal doc exists before trying to read from it
+        let currentStatus = false;
+        if (mealDoc.exists()) {
+            currentStatus = mealDoc.data()[meal] as boolean;
+        } else {
+            // If doc doesn't exist, we assume the meal was off if new status is on,
+            // and on if new status is off to calculate the delta.
+            // A better approach is to rely on ensureDailyMealDocs creating the doc first.
+            // For simplicity, we assume default is false if doc not found.
+        }
 
         if (currentStatus === newStatus) {
             return; // No change needed
@@ -547,6 +557,29 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     });
 
     return ledger;
+}
+
+export const getTodaysMealStatusesForMess = async (messId: string): Promise<Record<string, MealStatus>> => {
+    if (!db) throw new Error("Firestore not initialized");
+    const todayStr = new Date().toISOString().split('T')[0];
+    const membersRef = collection(db, 'messes', messId, 'members');
+    const membersSnap = await getFirestoreDocs(membersRef);
+    
+    const statuses: Record<string, MealStatus> = {};
+    
+    await Promise.all(membersSnap.docs.map(async (memberDoc) => {
+        const userId = memberDoc.id;
+        const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
+        const mealDocSnap = await getDoc(mealDocRef);
+        
+        if (mealDocSnap.exists()) {
+            statuses[userId] = mealDocSnap.data() as MealStatus;
+        } else {
+            statuses[userId] = { breakfast: true, lunch: true, dinner: true };
+        }
+    }));
+
+    return statuses;
 }
 
 export const ensureDailyMealDocs = async (messId: string) => {

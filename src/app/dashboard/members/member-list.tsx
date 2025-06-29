@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,16 +16,92 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import type { Member } from "@/services/messService";
+import { useToast } from "@/hooks/use-toast";
+import { updateMealForToday, type Member, type UserProfile, type MealStatus } from "@/services/messService";
 import { MealLedgerDialog } from './meal-ledger-dialog';
 
-export function MemberList({ members, messId }: { members: Member[], messId: string }) {
+interface MemberListProps {
+  members: Member[];
+  messId: string;
+  currentUserProfile: UserProfile;
+  initialMealStatuses: Record<string, MealStatus>;
+}
+
+export function MemberList({ members, messId, currentUserProfile, initialMealStatuses }: MemberListProps) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+  const [mealStatuses, setMealStatuses] = useState(initialMealStatuses);
+  const [submitting, setSubmitting] = useState<Record<string, boolean>>({}); // e.g., { 'memberId-breakfast': true }
+  const { toast } = useToast();
+
+  useEffect(() => {
+    setMealStatuses(initialMealStatuses);
+  }, [initialMealStatuses]);
 
   const handleViewLedger = (member: Member) => {
     setSelectedMember(member);
     setIsLedgerOpen(true);
+  };
+
+  const isManager = currentUserProfile.role === 'manager';
+
+  const handleMealOverride = async (memberId: string, meal: keyof MealStatus) => {
+    const currentStatus = mealStatuses[memberId]?.[meal];
+    if (currentStatus === undefined) return;
+
+    const newStatus = !currentStatus;
+    const submissionKey = `${memberId}-${meal}`;
+
+    setSubmitting(prev => ({ ...prev, [submissionKey]: true }));
+    
+    // Optimistic UI update
+    setMealStatuses(prev => ({
+      ...prev,
+      [memberId]: {
+        ...(prev[memberId] || { breakfast: false, lunch: false, dinner: false }),
+        [meal]: newStatus
+      }
+    }));
+
+    try {
+      await updateMealForToday(messId, memberId, meal, newStatus);
+      toast({
+          title: "Success",
+          description: `Meal status updated for ${members.find(m => m.id === memberId)?.name}.`
+      });
+    } catch (error) {
+      console.error("Failed to override meal status:", error);
+      // Revert UI on error
+      setMealStatuses(prev => ({
+        ...prev,
+        [memberId]: {
+          ...(prev[memberId] || { breakfast: false, lunch: false, dinner: false }),
+          [meal]: !newStatus
+        }
+      }));
+      toast({
+        title: "Update Failed",
+        description: "Could not save the meal choice. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(prev => ({ ...prev, [submissionKey]: false }));
+    }
+  };
+
+  const MealOverrideSwitch = ({ memberId, meal }: { memberId: string, meal: keyof MealStatus }) => {
+    const submissionKey = `${memberId}-${meal}`;
+    const isChecked = mealStatuses[memberId]?.[meal] ?? false;
+
+    return (
+      <Switch
+        className="scale-75"
+        checked={isChecked}
+        onCheckedChange={() => handleMealOverride(memberId, meal)}
+        disabled={!isManager || submitting[submissionKey]}
+        aria-readonly={!isManager}
+      />
+    );
   };
 
   return (
@@ -34,7 +110,11 @@ export function MemberList({ members, messId }: { members: Member[], messId: str
         <CardHeader>
           <CardTitle className="font-headline">Member List</CardTitle>
           <CardDescription>
-            Here are all the members currently in your MessX. As a manager, you can override their meal status.
+            Here are all the members currently in your MessX. 
+            {isManager 
+              ? " As a manager, you can override their meal status for today." 
+              : " Only managers can override meal statuses."
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -44,7 +124,7 @@ export function MemberList({ members, messId }: { members: Member[], messId: str
                 <TableHead>Member</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
                 <TableHead className="text-center">Total Meals</TableHead>
-                <TableHead className="text-center">Meal Override</TableHead>
+                <TableHead className="text-center">Today's Meals (Override)</TableHead>
                 <TableHead>
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -71,9 +151,9 @@ export function MemberList({ members, messId }: { members: Member[], messId: str
                   <TableCell className="text-center">{member.meals}</TableCell>
                   <TableCell>
                     <div className="flex justify-center items-center gap-2 text-xs text-muted-foreground">
-                        B<Switch className="scale-75" />
-                        L<Switch className="scale-75" defaultChecked />
-                        D<Switch className="scale-75" />
+                        B<MealOverrideSwitch memberId={member.id} meal="breakfast" />
+                        L<MealOverrideSwitch memberId={member.id} meal="lunch" />
+                        D<MealOverrideSwitch memberId={member.id} meal="dinner" />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -88,10 +168,14 @@ export function MemberList({ members, messId }: { members: Member[], messId: str
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem>View Profile</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewLedger(member)}>View Meal Ledger</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-500">
-                          Remove from MessX
-                        </DropdownMenuItem>
+                        {isManager && member.id !== currentUserProfile.uid && (
+                            <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-red-500">
+                                Remove from MessX
+                                </DropdownMenuItem>
+                            </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
