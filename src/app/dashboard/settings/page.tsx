@@ -192,11 +192,9 @@ export default function SettingsPage() {
                 newImageFile: imageFile,
             });
             toast({ title: "Success", description: "Your profile has been updated." });
-            fetchData();
+            router.refresh(); // Soft refresh the page to update layout data.
             setImageFile(null);
             setImagePreview(null);
-            // We might need a page reload for the layout to pick up the change instantly
-            // For now, it will update on next navigation
         } catch (error) {
             console.error("Failed to update profile", error);
             toast({ title: "Error", description: "Could not update your profile.", variant: "destructive" });
