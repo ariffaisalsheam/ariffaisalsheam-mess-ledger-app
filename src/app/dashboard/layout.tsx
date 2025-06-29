@@ -35,6 +35,8 @@ import {
   BookOpen,
   Receipt,
   CheckCheck,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +59,7 @@ import {
     type Notification
 } from "@/services/messService";
 import { formatDistanceToNow } from 'date-fns';
+import { useTheme } from "next-themes";
 
 export default function DashboardLayout({
   children,
@@ -74,6 +77,7 @@ export default function DashboardLayout({
 
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     if (!auth) {
@@ -416,6 +420,10 @@ export default function DashboardLayout({
               <DropdownMenuItem onClick={() => router.push('/dashboard/settings')} className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
+                {theme === "light" ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
+                <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive">
