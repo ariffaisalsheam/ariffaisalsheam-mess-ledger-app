@@ -116,6 +116,7 @@ export default function MealsPage() {
                 isBreakfastOn: true,
                 isLunchOn: true,
                 isDinnerOn: true,
+                isCutoffEnabled: true,
             };
             setMealSettings({ ...defaultSettings, ...(messData?.mealSettings || {}) });
         });
@@ -168,7 +169,8 @@ export default function MealsPage() {
       return { isBreakfastLocked: true, isLunchLocked: true, isDinnerLocked: true, breakfastCutoffTime: 'N/A', lunchCutoffTime: 'N/A', dinnerCutoffTime: 'N/A' };
     }
 
-    const now = new Date();
+    const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
     const [bH, bM] = mealSettings.breakfastCutoff.split(':').map(Number);
     const breakfastCutoff = new Date();
     breakfastCutoff.setHours(bH, bM, 0, 0);
@@ -181,8 +183,19 @@ export default function MealsPage() {
     const dinnerCutoff = new Date();
     dinnerCutoff.setHours(dH, dM, 0, 0);
 
-    const formatTime = (date: Date) => date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
+    if (mealSettings.isCutoffEnabled === false) {
+        return {
+            isBreakfastLocked: false,
+            isLunchLocked: false,
+            isDinnerLocked: false,
+            breakfastCutoffTime: formatTime(breakfastCutoff),
+            lunchCutoffTime: formatTime(lunchCutoff),
+            dinnerCutoffTime: formatTime(dinnerCutoff),
+        };
+    }
+    
+    const now = new Date();
+    
     return {
       isBreakfastLocked: now > breakfastCutoff,
       isLunchLocked: now > lunchCutoff,
@@ -276,7 +289,12 @@ export default function MealsPage() {
                             <div className={`flex items-center justify-between p-3 rounded-lg ${isLocked ? 'bg-muted/50' : ''}`}>
                                 <div>
                                     <Label htmlFor={`${meal}-count`} className="text-base font-medium capitalize">{meal}</Label>
-                                    <p className="text-sm text-muted-foreground">Cut-off: {cutoffTime}. {isLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        { mealSettings?.isCutoffEnabled 
+                                            ? `Cut-off: ${cutoffTime}. ${isLocked ? <span className="font-bold text-destructive">Locked.</span> : ''}`
+                                            : 'Cut-off times are disabled by manager.'
+                                        }
+                                    </p>
                                 </div>
                                 <MealCountControl meal={meal} isLocked={isLocked} />
                             </div>

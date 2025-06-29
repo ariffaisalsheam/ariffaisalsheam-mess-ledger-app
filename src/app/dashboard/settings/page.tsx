@@ -62,6 +62,7 @@ export default function SettingsPage() {
         isBreakfastOn: true,
         isLunchOn: true,
         isDinnerOn: true,
+        isCutoffEnabled: true,
     });
 
     const fetchData = useCallback(() => {
@@ -204,42 +205,52 @@ export default function SettingsPage() {
                     <CardTitle className="font-headline">Meal Settings</CardTitle>
                     <CardDescription>Enable or disable meals, and set cut-off times. Members can only toggle meals that are ON.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid gap-6 md:grid-cols-3">
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="isBreakfastOn" className="font-medium">Breakfast</Label>
-                            <Switch
-                                id="isBreakfastOn"
-                                checked={mealSettings.isBreakfastOn}
-                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isBreakfastOn: checked }))}
-                            />
-                        </div>
-                        <Label htmlFor="breakfastCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
-                        <Input id="breakfastCutoff" type="time" value={mealSettings.breakfastCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isBreakfastOn} />
+                <CardContent>
+                    <div className="flex items-center space-x-2 border-b pb-4 mb-6">
+                        <Switch
+                            id="isCutoffEnabled"
+                            checked={mealSettings.isCutoffEnabled}
+                            onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isCutoffEnabled: checked }))}
+                        />
+                        <Label htmlFor="isCutoffEnabled" className="text-base">Enable Meal Cut-off Times</Label>
                     </div>
-                    <div className="space-y-2">
+                    <div className="grid gap-6 md:grid-cols-3">
+                        <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                            <Label htmlFor="isLunchOn" className="font-medium">Lunch</Label>
-                            <Switch
-                                id="isLunchOn"
-                                checked={mealSettings.isLunchOn}
-                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isLunchOn: checked }))}
-                            />
+                                <Label htmlFor="isBreakfastOn" className="font-medium">Breakfast</Label>
+                                <Switch
+                                    id="isBreakfastOn"
+                                    checked={mealSettings.isBreakfastOn}
+                                    onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isBreakfastOn: checked }))}
+                                />
+                            </div>
+                            <Label htmlFor="breakfastCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                            <Input id="breakfastCutoff" type="time" value={mealSettings.breakfastCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isBreakfastOn || !mealSettings.isCutoffEnabled} />
                         </div>
-                        <Label htmlFor="lunchCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
-                        <Input id="lunchCutoff" type="time" value={mealSettings.lunchCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isLunchOn} />
-                    </div>
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="isDinnerOn" className="font-medium">Dinner</Label>
-                            <Switch
-                                id="isDinnerOn"
-                                checked={mealSettings.isDinnerOn}
-                                onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isDinnerOn: checked }))}
-                            />
+                        <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                <Label htmlFor="isLunchOn" className="font-medium">Lunch</Label>
+                                <Switch
+                                    id="isLunchOn"
+                                    checked={mealSettings.isLunchOn}
+                                    onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isLunchOn: checked }))}
+                                />
+                            </div>
+                            <Label htmlFor="lunchCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                            <Input id="lunchCutoff" type="time" value={mealSettings.lunchCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isLunchOn || !mealSettings.isCutoffEnabled} />
                         </div>
-                        <Label htmlFor="dinnerCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
-                        <Input id="dinnerCutoff" type="time" value={mealSettings.dinnerCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isDinnerOn} />
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="isDinnerOn" className="font-medium">Dinner</Label>
+                                <Switch
+                                    id="isDinnerOn"
+                                    checked={mealSettings.isDinnerOn}
+                                    onCheckedChange={(checked) => setMealSettings(prev => ({ ...prev, isDinnerOn: checked }))}
+                                />
+                            </div>
+                            <Label htmlFor="dinnerCutoff" className="text-sm text-muted-foreground">Cut-off Time</Label>
+                            <Input id="dinnerCutoff" type="time" value={mealSettings.dinnerCutoff} onChange={handleSettingsChange} disabled={!mealSettings.isDinnerOn || !mealSettings.isCutoffEnabled} />
+                        </div>
                     </div>
                 </CardContent>
                 <CardFooter className="border-t px-6 py-4">

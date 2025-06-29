@@ -68,6 +68,7 @@ export interface MealSettings {
     isBreakfastOn: boolean;
     isLunchOn: boolean;
     isDinnerOn: boolean;
+    isCutoffEnabled?: boolean;
 }
 
 export interface MealStatus {
@@ -120,7 +121,6 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     const unsubscribes: (() => void)[] = [];
 
     const combineAndCallback = () => {
-        // De-duplicate notifications
         const allNotificationsMap = new Map<string, Notification>();
         [...personalNotifications, ...managerNotifications].forEach(n => {
             allNotificationsMap.set(n.id, n);
@@ -128,7 +128,6 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         
         const uniqueNotifications = Array.from(allNotificationsMap.values());
         
-        // Sort by timestamp descending
         uniqueNotifications.sort((a, b) => {
             const timeA = a.timestamp?.toMillis() || 0;
             const timeB = b.timestamp?.toMillis() || 0;
@@ -138,8 +137,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         callback(uniqueNotifications.slice(0, 20));
     };
 
-    // Listener for personal notifications
-    const personalQuery = query(notificationsRef, where('userId', '==', userId));
+    const personalQuery = query(notificationsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -152,9 +150,8 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     });
     unsubscribes.push(personalUnsubscribe);
 
-    // If the user is a manager, also listen for manager-wide notifications
     if (role === 'manager') {
-        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
+        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             managerNotifications = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -168,7 +165,6 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         unsubscribes.push(managerUnsubscribe);
     }
     
-    // Return a single function that unsubscribes from all listeners
     return () => {
         unsubscribes.forEach(unsub => unsub());
     };
@@ -235,6 +231,7 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
         isBreakfastOn: true,
         isLunchOn: true,
         isDinnerOn: true,
+        isCutoffEnabled: true,
     }
   });
 
@@ -769,12 +766,10 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
 
-    // Calculate the date `days` ago to create a start bound for the query
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (days - 1));
     const startDateString = startDate.toISOString().split('T')[0];
     
-    // Query without descending order to avoid composite index requirement.
     const q = query(mealsColRef, where(documentId(), '>=', startDateString));
     const querySnapshot = await getFirestoreDocs(q);
 
@@ -786,7 +781,6 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    // Sort and limit on the client side
     ledger.sort((a, b) => b.date.localeCompare(a.date));
 
     return ledger.slice(0, days);
@@ -812,7 +806,6 @@ export const getMealHistoryForMess = async (messId: string, days: number = 7): P
     const nestedHistory = await Promise.all(allHistoryPromises);
     const flatHistory = nestedHistory.flat();
     
-    // Sort by date (most recent first), then by member name
     flatHistory.sort((a, b) => {
         if (a.date > b.date) return -1;
         if (a.date < b.date) return 1;
