@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -111,9 +112,9 @@ export default function WelcomePage() {
                 <div className="mx-auto mb-4">
                     <Logo />
                 </div>
-                <CardTitle className="font-headline text-3xl">Welcome, {userProfile?.displayName || 'Friend'}!</CardTitle>
+                <CardTitle className="font-headline text-3xl">Mess Ledger</CardTitle>
                 <CardDescription>
-                    You're not part of a mess yet. Create one or join an existing one to get started.
+                    Welcome, <span className="font-semibold text-foreground">{userProfile?.displayName || 'Friend'}</span>! You're not part of a mess yet. Create one or join an existing one to get started.
                 </CardDescription>
             </CardHeader>
             <CardContent className="p-6 pt-2 flex flex-col gap-4">
@@ -140,10 +141,8 @@ export default function WelcomePage() {
       </div>
       <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
         <DialogContent className="sm:max-w-xl p-0">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Personal Information</DialogTitle>
-            <DialogDescription>Update your name and profile picture.</DialogDescription>
-          </DialogHeader>
+          <DialogTitle className="sr-only">Personal Information</DialogTitle>
+          <DialogDescription className="sr-only">Update your name and profile picture.</DialogDescription>
           <ProfileEditor 
             userProfile={userProfile}
             onProfileUpdate={fetchProfile}
