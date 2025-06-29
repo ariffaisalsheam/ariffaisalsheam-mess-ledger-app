@@ -5,6 +5,7 @@
 
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -540,6 +541,57 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
 
         // Update today's meal status document
         transaction.set(mealDocRef, { [meal]: newCount }, { merge: true });
+    });
+};
+
+export const getMealStatusForDate = async (messId: string, userId: string, dateStr: string): Promise<MealStatus> => {
+    if (!db) throw new Error("Firestore not initialized");
+    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', dateStr);
+    const mealDocSnap = await getDoc(mealDocRef);
+
+    if (mealDocSnap.exists()) {
+        return mealDocSnap.data() as MealStatus;
+    } else {
+        return { breakfast: 0, lunch: 0, dinner: 0 };
+    }
+}
+
+export const updateMealForDate = async (messId: string, userId: string, date: string, newMeals: MealStatus) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', date);
+
+    await runTransaction(db, async (transaction) => {
+        const mealDoc = await transaction.get(mealDocRef);
+        const memberDoc = await transaction.get(memberRef);
+
+        if (!memberDoc.exists()) {
+            throw `Member with ID ${userId} not found in mess ${messId}`;
+        }
+        
+        let oldMeals: MealStatus = { breakfast: 0, lunch: 0, dinner: 0 };
+        if (mealDoc.exists()) {
+            oldMeals = mealDoc.data() as MealStatus;
+        }
+
+        const breakfastDiff = newMeals.breakfast - oldMeals.breakfast;
+        const lunchDiff = newMeals.lunch - oldMeals.lunch;
+        const dinnerDiff = newMeals.dinner - oldMeals.dinner;
+        const totalMealDiff = breakfastDiff + lunchDiff + dinnerDiff;
+
+        if (totalMealDiff === 0) {
+            return; // No change needed
+        }
+
+        const currentTotalMeals = memberDoc.data().meals || 0;
+        const newTotalMeals = currentTotalMeals + totalMealDiff;
+
+        // Update member's total meal count
+        transaction.update(memberRef, { meals: newTotalMeals });
+
+        // Update the meal status document for the specified date
+        transaction.set(mealDocRef, newMeals, { merge: true });
     });
 };
 

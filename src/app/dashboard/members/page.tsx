@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { UserCog, Loader2 } from "lucide-react";
 import { MemberList } from './member-list';
@@ -35,8 +35,8 @@ export default function MembersPage() {
 
     return () => unsubscribe();
   }, [router]);
-
-  useEffect(() => {
+  
+  const fetchData = useCallback(() => {
     if (!authUser) return;
 
     setLoading(true);
@@ -61,6 +61,11 @@ export default function MembersPage() {
     });
   }, [authUser, router]);
 
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
   if (loading) {
     return (
       <div className="flex h-full w-full items-center justify-center">
@@ -82,6 +87,7 @@ export default function MembersPage() {
           messId={userProfile.messId}
           currentUserProfile={userProfile}
           initialMealStatuses={mealStatuses}
+          onUpdate={fetchData}
         />
       )}
     </div>

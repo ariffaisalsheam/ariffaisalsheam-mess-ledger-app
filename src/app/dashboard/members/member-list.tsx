@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { updateMealForToday, type Member, type UserProfile, type MealStatus } from "@/services/messService";
 import { MealLedgerDialog } from './meal-ledger-dialog';
+import { AddMealRecordDialog } from './add-meal-record-dialog';
 
 type MealType = keyof MealStatus;
 
@@ -27,11 +28,13 @@ interface MemberListProps {
   messId: string;
   currentUserProfile: UserProfile;
   initialMealStatuses: Record<string, MealStatus>;
+  onUpdate: () => void;
 }
 
-export function MemberList({ members, messId, currentUserProfile, initialMealStatuses }: MemberListProps) {
+export function MemberList({ members, messId, currentUserProfile, initialMealStatuses, onUpdate }: MemberListProps) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [isLedgerOpen, setIsLedgerOpen] = useState(false);
+  const [isMealRecordDialogOpen, setIsMealRecordDialogOpen] = useState(false);
   const [mealStatuses, setMealStatuses] = useState(initialMealStatuses);
   const [submitting, setSubmitting] = useState<Record<string, boolean>>({}); // e.g., { 'memberId-breakfast': true }
   const { toast } = useToast();
@@ -43,6 +46,11 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
   const handleViewLedger = (member: Member) => {
     setSelectedMember(member);
     setIsLedgerOpen(true);
+  };
+  
+  const handleAddMealRecord = (member: Member) => {
+    setSelectedMember(member);
+    setIsMealRecordDialogOpen(true);
   };
 
   const isManager = currentUserProfile.role === 'manager';
@@ -172,13 +180,20 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuItem>View Profile</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewLedger(member)}>View Meal Ledger</DropdownMenuItem>
-                        {isManager && member.id !== currentUserProfile.uid && (
+                        {isManager && (
                             <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-500">
-                                Remove from MessX
+                                <DropdownMenuItem onClick={() => handleAddMealRecord(member)}>
+                                    Add/Edit Meal Record
                                 </DropdownMenuItem>
-                            </>
+                                {member.id !== currentUserProfile.uid && (
+                                    <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem className="text-red-500">
+                                            Remove from MessX
+                                        </DropdownMenuItem>
+                                    </>
+                                )}
+                           </>
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -196,6 +211,16 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
           messId={messId}
           memberId={selectedMember.id}
           memberName={selectedMember.name}
+        />
+      )}
+      {selectedMember && isManager && (
+        <AddMealRecordDialog 
+          isOpen={isMealRecordDialogOpen}
+          setIsOpen={setIsMealRecordDialogOpen}
+          messId={messId}
+          memberId={selectedMember.id}
+          memberName={selectedMember.name}
+          onSuccess={onUpdate}
         />
       )}
     </>
