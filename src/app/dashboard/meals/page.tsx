@@ -275,14 +275,13 @@ export default function MealsPage() {
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader>
             <div>
               <CardTitle className="font-headline">Today's Meals</CardTitle>
               <CardDescription>
                 Set your meal count for today. Toggles lock after the cut-off time.
               </CardDescription>
             </div>
-            {isSaved && <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"><CheckCircle className="mr-1 h-4 w-4" /> Saved</Badge>}
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -314,11 +313,12 @@ export default function MealsPage() {
             )}
           </div>
         </CardContent>
-        <CardFooter className="border-t pt-6">
+        <CardFooter className="border-t pt-6 flex items-center gap-4">
             <Button onClick={handleSaveMeals} disabled={isSaved || submitting['save']}>
                 {submitting['save'] ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
                 Save Choices
             </Button>
+            {isSaved && <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300"><CheckCircle className="mr-1 h-4 w-4" /> Saved</Badge>}
         </CardFooter>
       </Card>
       
