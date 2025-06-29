@@ -1,5 +1,5 @@
 
-import { db } from '@/lib/firebase';
+import { db, auth, storage } from '@/lib/firebase';
 import {
   doc,
   setDoc,
@@ -20,7 +20,8 @@ import {
   orderBy,
   documentId
 } from 'firebase/firestore';
-import type { User as FirebaseUser } from 'firebase/auth';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updateProfile, type User as FirebaseUser } from 'firebase/auth';
 
 if (!db) {
   throw new Error("Firestore is not initialized");
@@ -161,15 +162,16 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         q = query(notificationsRef, where('userId', '==', userId));
     }
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const finalQuery = query(q, orderBy('timestamp', 'desc'));
+
+    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-        // Sort client-side to avoid composite index
-        notifications.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis() || 0;
-            const timeB = b.timestamp?.toMillis() || 0;
-            return timeB - timeA; // descending
-        });
-        callback(notifications);
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const filtered = notifications.filter(n => n.timestamp && n.timestamp.toDate() > thirtyDaysAgo);
+        
+        callback(filtered);
     }, (error) => console.error("Error on notifications snapshot:", error));
 
     return unsubscribe;
@@ -277,6 +279,68 @@ export const upsertUser = async (user: FirebaseUser) => {
 
   return userRef;
 };
+
+export const updateUserProfile = async (
+    userId: string,
+    updates: {
+      displayName?: string;
+      newImageFile?: File | null;
+    }
+  ) => {
+    if (!db || !auth) throw new Error("Firebase not initialized");
+  
+    const { displayName, newImageFile } = updates;
+    const user = auth.currentUser;
+    if (!user || user.uid !== userId) {
+      throw new Error("Authentication error.");
+    }
+  
+    const userDocRef = doc(db, 'users', userId);
+    const userProfile = await getUserProfile(userId);
+  
+    let newPhotoURL: string | undefined = undefined;
+  
+    // 1. Upload new image if it exists
+    if (newImageFile && storage) {
+      const storageRef = ref(storage, `profile-pictures/${userId}/${newImageFile.name}`);
+      const snapshot = await uploadBytes(storageRef, newImageFile);
+      newPhotoURL = await getDownloadURL(snapshot.ref);
+    }
+  
+    // 2. Prepare data for Firebase Auth and Firestore
+    const authUpdateData: { displayName?: string; photoURL?: string } = {};
+    const firestoreUpdateData: { displayName?: string; photoURL?: string } = {};
+  
+    if (displayName && displayName !== user.displayName) {
+      authUpdateData.displayName = displayName;
+      firestoreUpdateData.displayName = displayName;
+    }
+    if (newPhotoURL && newPhotoURL !== user.photoURL) {
+      authUpdateData.photoURL = newPhotoURL;
+      firestoreUpdateData.photoURL = newPhotoURL;
+    }
+  
+    // 3. Update Firebase Auth profile
+    if (Object.keys(authUpdateData).length > 0) {
+      await updateProfile(user, authUpdateData);
+    }
+  
+    // 4. Update Firestore user profile
+    if (Object.keys(firestoreUpdateData).length > 0) {
+      await updateDoc(userDocRef, firestoreUpdateData);
+    }
+  
+    // 5. Update name in mess members subcollection if user is in a mess
+    if (userProfile?.messId && displayName) {
+      const memberRef = doc(db, 'messes', userProfile.messId, 'members', userId);
+      const memberSnap = await getDoc(memberRef);
+      if (memberSnap.exists()) {
+        await updateDoc(memberRef, { name: displayName });
+      }
+    }
+  
+    return { ...authUpdateData };
+  };
 
 // Create a new mess
 export const createMess = async (messName: string, user: FirebaseUser) => {
@@ -541,27 +605,23 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
 export const getDepositsForUser = async (messId: string, userId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'deposits');
-    const q = query(depositsCol, where("userId", "==", userId));
+    const q = query(depositsCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
-    const data = snapshot.docs.map(doc => {
+    return snapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
     });
-    // Sort client-side to avoid needing a composite index
-    return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const getExpensesForUser = async (messId: string, userId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
-    const q = query(expensesCol, where("userId", "==", userId));
+    const q = query(expensesCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
-    const data = snapshot.docs.map(doc => {
+    return snapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
     });
-    // Sort client-side to avoid needing a composite index
-    return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
 export const updateDeposit = async (messId: string, deposit: Deposit, newAmount: number) => {
@@ -750,8 +810,7 @@ export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => 
     const snapshot = await getFirestoreDocs(query(depositsCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
-        return { id: doc.id, ...data, date } as Deposit;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
     });
 };
 
@@ -761,8 +820,7 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
     const snapshot = await getFirestoreDocs(query(expensesCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
-        const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
-        return { id: doc.id, ...data, date } as Expense;
+        return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
     });
 };
 
@@ -1066,18 +1124,13 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
     const querySnapshot = await getFirestoreDocs(q);
     
-    const ledger = querySnapshot.docs.map(doc => ({
+    return querySnapshot.docs.map(doc => ({
         date: doc.id,
         ...(doc.data() as MealStatus)
     }));
-
-    // Sort client-side
-    ledger.sort((a,b) => b.date.localeCompare(a.date));
-
-    return ledger;
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {

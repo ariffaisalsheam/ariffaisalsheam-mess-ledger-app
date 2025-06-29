@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save } from "lucide-react";
+import { Copy, Share2, UserCog, UserMinus, ShieldAlert, Loader2, Save, Camera } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +32,7 @@ import {
     getMembersOfMess,
     transferManagerRole,
     removeMemberFromMess,
+    updateUserProfile,
     type UserProfile as AppUserProfile, 
     type MealSettings,
     type Member
@@ -48,13 +49,22 @@ interface MessData {
 export default function SettingsPage() {
     const { toast } = useToast();
     const router = useRouter();
-    const [transferInput, setTransferInput] = useState("");
+    
+    // State for user profile
     const [userProfile, setUserProfile] = useState<AppUserProfile | null>(null);
+    const [name, setName] = useState('');
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isSavingProfile, setIsSavingProfile] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // State for mess settings
     const [messData, setMessData] = useState<MessData | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [transferInput, setTransferInput] = useState("");
     const [mealSettings, setMealSettings] = useState<MealSettings>({
         breakfastCutoff: "02:00",
         lunchCutoff: "13:00",
@@ -72,27 +82,28 @@ export default function SettingsPage() {
         setLoading(true);
         getUserProfile(currentUser.uid).then(profile => {
             setUserProfile(profile);
-            if (profile?.messId && profile.role === 'manager') {
-                Promise.all([
-                    getMessById(profile.messId),
-                    getMembersOfMess(profile.messId)
-                ]).then(([mess, fetchedMembers]) => {
-                    if (mess) {
-                        setMessData(mess as MessData);
-                        if (mess.mealSettings) {
-                            setMealSettings(prev => ({...prev, ...mess.mealSettings}));
+            if (profile) {
+                setName(profile.displayName || '');
+                if (profile.messId && profile.role === 'manager') {
+                    Promise.all([
+                        getMessById(profile.messId),
+                        getMembersOfMess(profile.messId)
+                    ]).then(([mess, fetchedMembers]) => {
+                        if (mess) {
+                            setMessData(mess as MessData);
+                            if (mess.mealSettings) {
+                                setMealSettings(prev => ({...prev, ...mess.mealSettings}));
+                            }
                         }
-                    }
-                    setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
-                }).catch(err => {
-                    console.error("Failed to load settings data", err);
-                    toast({ title: "Error", description: "Could not load settings data.", variant: "destructive" });
-                }).finally(() => {
-                    setLoading(false);
-                });
-            } else {
-                setLoading(false);
+                        setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
+                    }).catch(err => {
+                        console.error("Failed to load settings data", err);
+                        toast({ title: "Error", description: "Could not load settings data.", variant: "destructive" });
+                    });
+                }
             }
+        }).finally(() => {
+            setLoading(false);
         });
     }, [toast]);
 
@@ -141,7 +152,6 @@ export default function SettingsPage() {
         try {
             await transferManagerRole(messData.id, userProfile.uid, newManagerId);
             toast({ title: "Success!", description: `Manager role has been transferred to ${newManagerName}.`});
-            // Redirect to dashboard as user is no longer a manager
             router.push('/dashboard');
         } catch(error: any) {
             toast({ title: "Error", description: error.message || "Failed to transfer role.", variant: "destructive" });
@@ -157,13 +167,44 @@ export default function SettingsPage() {
         try {
             await removeMemberFromMess(messData.id, memberId);
             toast({ title: "Success!", description: `${memberName} has been removed from the mess.` });
-            fetchData(); // Refresh list
+            fetchData();
         } catch (error: any) {
             toast({ title: "Error", description: error.message || "Failed to remove member.", variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setImageFile(file);
+            setImagePreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        if (!userProfile) return;
+        setIsSavingProfile(true);
+        try {
+            await updateUserProfile(userProfile.uid, {
+                displayName: name,
+                newImageFile: imageFile,
+            });
+            toast({ title: "Success", description: "Your profile has been updated." });
+            fetchData();
+            setImageFile(null);
+            setImagePreview(null);
+            // We might need a page reload for the layout to pick up the change instantly
+            // For now, it will update on next navigation
+        } catch (error) {
+            console.error("Failed to update profile", error);
+            toast({ title: "Error", description: "Could not update your profile.", variant: "destructive" });
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
+
 
     if (loading) {
         return (
@@ -177,6 +218,47 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8">
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Personal Information</CardTitle>
+                <CardDescription>Update your name and profile picture.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-[120px_1fr] items-start">
+                <div className="relative group mx-auto">
+                    <Avatar className="h-28 w-28 border-2 border-primary/20">
+                        <AvatarImage src={imagePreview || userProfile?.photoURL || "https://placehold.co/120x120.png"} alt={userProfile?.displayName || ''} data-ai-hint="person portrait"/>
+                        <AvatarFallback>{userProfile?.displayName?.substring(0,2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <Button
+                        size="icon"
+                        variant="secondary"
+                        className="absolute bottom-1 right-1 rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        <Camera className="h-4 w-4" />
+                        <span className="sr-only">Change picture</span>
+                    </Button>
+                    <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
+                </div>
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="displayName">Display Name</Label>
+                        <Input id="displayName" value={name} onChange={(e) => setName(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input id="email" value={userProfile?.email || ''} readOnly disabled />
+                    </div>
+                </div>
+            </CardContent>
+            <CardFooter className="border-t pt-6">
+                <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+                    {isSavingProfile && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Profile
+                </Button>
+            </CardFooter>
+        </Card>
+
       {isManager ? (
         <>
             <Card>
@@ -369,8 +451,8 @@ export default function SettingsPage() {
       ) : (
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">Settings</CardTitle>
-                <CardDescription>Personal and Mess settings.</CardDescription>
+                <CardTitle className="font-headline">Mess Settings</CardTitle>
+                <CardDescription>Settings for your mess.</CardDescription>
             </CardHeader>
             <CardContent>
                 <p>You do not have permission to view or edit Mess settings. Please contact your mess manager for assistance.</p>
