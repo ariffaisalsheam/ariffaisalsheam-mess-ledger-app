@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,14 +24,18 @@ import { useToast } from '@/hooks/use-toast';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { getMessById, getUserProfile, updateMealSettings, type UserProfile as AppUserProfile, type MealSettings } from '@/services/messService';
+import { 
+    getMessById, 
+    getUserProfile, 
+    updateMealSettings, 
+    getMembersOfMess,
+    transferManagerRole,
+    removeMemberFromMess,
+    type UserProfile as AppUserProfile, 
+    type MealSettings,
+    type Member
+} from '@/services/messService';
 
-const members = [
-  { id: 2, name: "Karim Khan", role: "member", avatar: "https://placehold.co/40x40.png" },
-  { id: 3, name: "Jabbar Ali", role: "member", avatar: "https://placehold.co/40x40.png" },
-  { id: 4, name: "Salam Sheikh", role: "member", avatar: "https://placehold.co/40x40.png" },
-  { id: 5, name: "Farah Ahmed", role: "member", avatar: "https://placehold.co/40x40.png" },
-];
 
 interface MessData {
     id: string;
@@ -47,8 +50,10 @@ export default function SettingsPage() {
     const [transferInput, setTransferInput] = useState("");
     const [userProfile, setUserProfile] = useState<AppUserProfile | null>(null);
     const [messData, setMessData] = useState<MessData | null>(null);
+    const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [mealSettings, setMealSettings] = useState<MealSettings>({
         breakfastCutoff: "02:00",
         lunchCutoff: "13:00",
@@ -58,31 +63,47 @@ export default function SettingsPage() {
         isDinnerOn: true,
     });
 
+    const fetchData = useCallback(() => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) return;
+
+        setLoading(true);
+        getUserProfile(currentUser.uid).then(profile => {
+            setUserProfile(profile);
+            if (profile?.messId && profile.role === 'manager') {
+                Promise.all([
+                    getMessById(profile.messId),
+                    getMembersOfMess(profile.messId)
+                ]).then(([mess, fetchedMembers]) => {
+                    if (mess) {
+                        setMessData(mess as MessData);
+                        if (mess.mealSettings) {
+                            setMealSettings(mess.mealSettings);
+                        }
+                    }
+                    setMembers(fetchedMembers.filter(m => m.id !== currentUser.uid));
+                }).catch(err => {
+                    console.error("Failed to load settings data", err);
+                    toast({ title: "Error", description: "Could not load settings data.", variant: "destructive" });
+                }).finally(() => {
+                    setLoading(false);
+                });
+            } else {
+                setLoading(false);
+            }
+        });
+    }, [toast]);
+
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (user) {
-                getUserProfile(user.uid).then(profile => {
-                    setUserProfile(profile);
-                    if (profile?.messId) {
-                        getMessById(profile.messId).then(mess => {
-                            if (mess) {
-                               setMessData(mess as MessData);
-                               if (mess.mealSettings) {
-                                   setMealSettings(mess.mealSettings);
-                               }
-                            }
-                            setLoading(false);
-                        });
-                    } else {
-                        setLoading(false);
-                    }
-                });
+                fetchData();
             } else {
                 router.push('/login');
             }
         });
         return () => unsubscribe();
-    }, [router]);
+    }, [fetchData, router]);
     
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -103,7 +124,6 @@ export default function SettingsPage() {
         }
     }
 
-
     const handleCopy = () => {
         if (!messData?.inviteCode) return;
         navigator.clipboard.writeText(messData.inviteCode);
@@ -112,6 +132,36 @@ export default function SettingsPage() {
             description: "Invite code copied to clipboard.",
         });
     }
+
+    const handleTransferManager = async (newManagerId: string, newManagerName: string) => {
+        if (!messData?.id || !userProfile?.uid) return;
+        setIsSubmitting(true);
+        try {
+            await transferManagerRole(messData.id, userProfile.uid, newManagerId);
+            toast({ title: "Success!", description: `Manager role has been transferred to ${newManagerName}.`});
+            // Redirect to dashboard as user is no longer a manager
+            router.push('/dashboard');
+        } catch(error: any) {
+            toast({ title: "Error", description: error.message || "Failed to transfer role.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+            setTransferInput("");
+        }
+    };
+
+    const handleRemoveMember = async (memberId: string, memberName: string) => {
+        if (!messData?.id) return;
+        setIsSubmitting(true);
+        try {
+            await removeMemberFromMess(messData.id, memberId);
+            toast({ title: "Success!", description: `${memberName} has been removed from the mess.` });
+            fetchData(); // Refresh list
+        } catch (error: any) {
+            toast({ title: "Error", description: error.message || "Failed to remove member.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -219,43 +269,70 @@ export default function SettingsPage() {
                                         <div className="flex items-center gap-3">
                                             <Avatar>
                                                 <AvatarImage src={member.avatar} alt={member.name} data-ai-hint="person portrait"/>
-                                                <AvatarFallback>{member.name.substring(0,2)}</AvatarFallback>
+                                                <AvatarFallback>{member.name.substring(0,2).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                             <span className="font-medium">{member.name}</span>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="outline" size="sm" className="mr-2">
-                                                <UserCog className="mr-2 h-4 w-4"/> Make Manager
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                            <AlertDialogTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 text-yellow-500" />Transfer Manager Role?</AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                You are about to make <strong>{member.name}</strong> the new manager of MessX Paradise. You will immediately lose all manager privileges and become a regular member. This action cannot be undone.
-                                                <br/><br/>
-                                                To confirm, please type <strong>TRANSFER</strong> in the box below.
-                                            </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <Input 
-                                                placeholder="Type TRANSFER to confirm" 
-                                                value={transferInput}
-                                                onChange={(e) => setTransferInput(e.target.value)}
-                                            />
-                                            <AlertDialogFooter>
-                                            <AlertDialogCancel onClick={() => setTransferInput("")}>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction disabled={transferInput !== "TRANSFER"}>
-                                                Confirm Transfer
-                                            </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
+                                    <TableCell className="text-right space-x-2">
+                                        <AlertDialog onOpenChange={() => setTransferInput("")}>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="outline" size="sm" disabled={isSubmitting}>
+                                                    <UserCog className="mr-2 h-4 w-4"/> Make Manager
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                <AlertDialogTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 text-yellow-500" />Transfer Manager Role?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    You are about to make <strong>{member.name}</strong> the new manager. You will immediately lose all manager privileges. This action cannot be undone.
+                                                    <br/><br/>
+                                                    To confirm, please type <strong>TRANSFER</strong> in the box below.
+                                                </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <Input 
+                                                    placeholder="Type TRANSFER to confirm" 
+                                                    value={transferInput}
+                                                    onChange={(e) => setTransferInput(e.target.value)}
+                                                />
+                                                <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction 
+                                                    disabled={transferInput !== "TRANSFER" || isSubmitting}
+                                                    onClick={() => handleTransferManager(member.id, member.name)}>
+                                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                    Confirm Transfer
+                                                </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
                                         </AlertDialog>
-                                        <Button variant="destructive" size="sm">
-                                            <UserMinus className="mr-2 h-4 w-4"/> Remove
-                                        </Button>
+                                        
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="destructive" size="sm" disabled={isSubmitting}>
+                                                    <UserMinus className="mr-2 h-4 w-4"/> Remove
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle className="font-headline">Remove {member.name}?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Are you sure you want to remove <strong>{member.name}</strong> from the mess? This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction 
+                                                        onClick={() => handleRemoveMember(member.id, member.name)}
+                                                        disabled={isSubmitting}
+                                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                    >
+                                                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                        Confirm Removal
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </TableCell>
                                 </TableRow>
                             ))}
