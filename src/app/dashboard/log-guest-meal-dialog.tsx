@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +40,13 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
     setMeals({ breakfast: 0, lunch: 0, dinner: 0 });
   }
 
+  // This effect ensures the date is reset to the current date each time the dialog is opened.
+  useEffect(() => {
+    if (isOpen) {
+      resetState();
+    }
+  }, [isOpen]);
+
   const handleMealChange = (mealType: keyof typeof meals, value: string) => {
     const count = parseFloat(value);
     if (!isNaN(count) && count >= 0) {
@@ -71,7 +78,6 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
       });
       onSuccess();
       setIsOpen(false);
-      resetState();
     } catch (error) {
       console.error("Failed to log guest meals:", error);
       toast({
@@ -85,10 +91,7 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => {
-        setIsOpen(open);
-        if (!open) resetState();
-    }}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline">Log Guest Meals</DialogTitle>
