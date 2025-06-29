@@ -46,10 +46,6 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
         .then(setMeals)
         .catch(console.error)
         .finally(() => setLoadingDate(false));
-    } else if (!isOpen) {
-      // Reset state when dialog closes
-      setDate(new Date());
-      setMeals({ breakfast: 0, lunch: 0, dinner: 0 });
     }
   }, [isOpen, date, memberId, messId]);
 
@@ -89,9 +85,18 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
       setSubmitting(false);
     }
   };
+  
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      // Reset state when dialog is closed to avoid showing stale data.
+      setDate(new Date());
+      setMeals({ breakfast: 0, lunch: 0, dinner: 0 });
+    }
+  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline">Add/Edit Meal Record</DialogTitle>
