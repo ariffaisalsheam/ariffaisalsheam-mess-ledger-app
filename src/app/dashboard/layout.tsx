@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -243,6 +243,7 @@ export default function DashboardLayout({
   }
   
   const userBalance = memberDetails?.balance ?? 0;
+  const userMeals = memberDetails?.meals ?? 0;
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
   return (
@@ -255,8 +256,8 @@ export default function DashboardLayout({
               <span className="font-headline text-lg">{messName}</span>
             </Link>
           </div>
-          <div className="flex-1">
-            <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+          <div className="flex-1 overflow-auto">
+            <nav className="grid items-start px-2 text-sm font-medium lg:px-4 py-4">
               {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
               {userProfile?.role === 'manager' && managerNavItems.map(item => (
                 <NavLink key={item.href} href={item.href}>
@@ -266,7 +267,20 @@ export default function DashboardLayout({
               ))}
             </nav>
           </div>
-          <div className="mt-auto p-4">
+          <div className="mt-auto p-4 space-y-4 border-t">
+            <Card>
+              <CardContent className="p-2 md:p-4">
+                <div className="flex items-center gap-2">
+                    <Utensils className="h-6 w-6 text-primary"/>
+                    <div>
+                        <p className="text-sm font-medium leading-none">Your Total Meals</p>
+                        <p className="text-xl font-bold">
+                            {userMeals.toFixed(2)}
+                        </p>
+                    </div>
+                </div>
+              </CardContent>
+            </Card>
             <Card>
               <CardContent className="p-2 md:p-4">
                 <div className="flex items-center gap-2">
