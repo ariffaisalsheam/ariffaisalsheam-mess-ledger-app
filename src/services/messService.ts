@@ -162,7 +162,10 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
         
-        const sorted = notifications.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+        const sorted = notifications.sort((a,b) => {
+            if (!a.timestamp || !b.timestamp) return 0;
+            return b.timestamp.toMillis() - a.timestamp.toMillis();
+        });
 
         if (role === 'manager') {
             const uniqueNotifications = Array.from(new Map(sorted.map(n => [n.id, n])).values());
@@ -175,6 +178,45 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     return unsubscribe;
 }
+
+export const markNotificationAsRead = async (messId: string, notificationId: string) => {
+    if (!db) return;
+    try {
+        const notificationRef = doc(db, 'messes', messId, 'notifications', notificationId);
+        await updateDoc(notificationRef, { read: true });
+    } catch (error) {
+        console.error("Error marking notification as read:", error);
+        throw error;
+    }
+}
+
+export const markAllNotificationsAsRead = async (messId: string, userId: string, role: 'manager' | 'member') => {
+    if (!db || !role) return;
+    try {
+        const notificationsRef = collection(db, 'messes', messId, 'notifications');
+        let q;
+        if (role === 'manager') {
+            q = query(notificationsRef, where('userId', 'in', ['manager', userId]), where('read', '==', false));
+        } else {
+            q = query(notificationsRef, where('userId', '==', userId), where('read', '==', false));
+        }
+        
+        const snapshot = await getFirestoreDocs(q);
+
+        if (snapshot.empty) {
+            return;
+        }
+
+        const batch = writeBatch(db);
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { read: true });
+        });
+        await batch.commit();
+    } catch (error) {
+        console.error("Error marking all notifications as read:", error);
+        throw error;
+    }
+};
 
 export const deleteNotification = async (messId: string, notificationId: string) => {
     if (!db) return;

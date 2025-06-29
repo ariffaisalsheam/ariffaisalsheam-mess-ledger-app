@@ -34,6 +34,7 @@ import {
   X,
   BookOpen,
   Receipt,
+  CheckCheck,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +50,8 @@ import {
     onNotificationsChange,
     deleteNotification,
     deleteAllNotificationsForUser,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
     type UserProfile, 
     type Member,
     type Notification
@@ -202,17 +205,35 @@ export default function DashboardLayout({
     { href: "/dashboard/review", icon: <CheckSquare className="h-4 w-4" />, label: "Review", badge: pendingReviews },
   ];
   
-  const handleDeleteNotification = async (notificationId: string) => {
+  const handleDeleteNotification = async (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
     if (userProfile?.messId) {
         await deleteNotification(userProfile.messId, notificationId);
     }
   };
 
-  const handleClearAllNotifications = async () => {
+  const handleClearAllNotifications = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (userProfile?.messId && authUser?.uid && userProfile.role) {
         await deleteAllNotificationsForUser(userProfile.messId, authUser.uid, userProfile.role);
     }
   };
+
+  const handleMarkAllRead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+     if (userProfile?.messId && authUser?.uid && userProfile.role) {
+        await markAllNotificationsAsRead(userProfile.messId, authUser.uid, userProfile.role);
+    }
+  }
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (userProfile?.messId && !notification.read) {
+        await markNotificationAsRead(userProfile.messId, notification.id);
+    }
+    if (notification.link) {
+        router.push(notification.link);
+    }
+  }
 
   if (loading) {
     return (
@@ -223,7 +244,7 @@ export default function DashboardLayout({
   }
   
   const userBalance = memberDetails?.balance ?? 0;
-  const notificationCount = notifications.length;
+  const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -302,9 +323,9 @@ export default function DashboardLayout({
             <PopoverTrigger asChild>
                 <Button variant="outline" size="icon" className="h-8 w-8 relative">
                     <Bell className="h-4 w-4" />
-                    {notificationCount > 0 && (
+                    {unreadNotificationCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-white">
-                            {notificationCount}
+                            {unreadNotificationCount}
                         </span>
                     )}
                     <span className="sr-only">Toggle notifications</span>
@@ -313,16 +334,31 @@ export default function DashboardLayout({
             <PopoverContent align="end" className="w-80 p-0">
                 <div className="p-3 border-b flex justify-between items-center">
                     <h3 className="font-medium font-headline text-sm">Notifications</h3>
-                    {notificationCount > 0 && (
-                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleClearAllNotifications}>
-                            Clear all
-                        </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {unreadNotificationCount > 0 && (
+                            <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleMarkAllRead}>
+                                <CheckCheck className="mr-1 h-3 w-3"/>
+                                Mark all as read
+                            </Button>
+                        )}
+                        {notifications.length > 0 && (
+                            <Button variant="link" size="sm" className="p-0 h-auto text-xs text-destructive hover:text-destructive/80" onClick={handleClearAllNotifications}>
+                                Clear all
+                            </Button>
+                        )}
+                    </div>
                 </div>
                 <ScrollArea className="h-96">
-                    {notificationCount > 0 ? (
+                    {notifications.length > 0 ? (
                         notifications.map(n => (
-                            <div key={n.id} className="relative group p-3 border-b last:border-b-0 hover:bg-muted/50">
+                            <div
+                                key={n.id}
+                                className={cn(
+                                    "relative group p-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer",
+                                    !n.read && "bg-primary/10"
+                                )}
+                                onClick={() => handleNotificationClick(n)}
+                            >
                                 <div className="pr-6">
                                     <p className="text-sm">{n.message}</p>
                                     <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
@@ -330,11 +366,12 @@ export default function DashboardLayout({
                                         {n.timestamp ? formatDistanceToNow(n.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
                                     </p>
                                 </div>
+                                {!n.read && <div className="absolute left-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-primary" />}
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     className="absolute top-1/2 right-1 -translate-y-1/2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100"
-                                    onClick={() => handleDeleteNotification(n.id)}
+                                    onClick={(e) => handleDeleteNotification(e, n.id)}
                                 >
                                     <X className="h-4 w-4" />
                                     <span className="sr-only">Delete notification</span>
