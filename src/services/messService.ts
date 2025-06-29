@@ -650,7 +650,13 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
     const mealDocSnap = await getDoc(mealDocRef);
 
     if (mealDocSnap.exists()) {
-        return mealDocSnap.data() as MealStatus;
+        const data = mealDocSnap.data();
+        return {
+            breakfast: data.breakfast ?? 0,
+            lunch: data.lunch ?? 0,
+            dinner: data.dinner ?? 0,
+            isSetByUser: data.isSetByUser ?? false,
+        };
     } else {
         return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
     }
@@ -703,7 +709,13 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
     const mealDocSnap = await getDoc(mealDocRef);
 
     if (mealDocSnap.exists()) {
-        return mealDocSnap.data() as MealStatus;
+        const data = mealDocSnap.data();
+        return {
+            breakfast: data.breakfast ?? 0,
+            lunch: data.lunch ?? 0,
+            dinner: data.dinner ?? 0,
+            isSetByUser: data.isSetByUser ?? false,
+        };
     } else {
         return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
     }
@@ -723,7 +735,7 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        let oldMeals: MealStatus = { breakfast: 0, lunch: 0, dinner: 0 };
+        let oldMeals: MealStatus = { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         if (mealDoc.exists()) {
             oldMeals = mealDoc.data() as MealStatus;
         }
@@ -733,13 +745,13 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         const dinnerDiff = (newMeals.dinner ?? 0) - (oldMeals.dinner ?? 0);
         const totalMealDiff = breakfastDiff + lunchDiff + dinnerDiff;
 
-        if (totalMealDiff === 0) {
-             // If only isSetByUser is changing
-            if (newMeals.isSetByUser !== oldMeals.isSetByUser) {
-                transaction.set(mealDocRef, { isSetByUser: newMeals.isSetByUser }, { merge: true });
-            }
-            return;
+        // If only isSetByUser is changing, and meal counts are the same
+        if (totalMealDiff === 0 && newMeals.isSetByUser !== oldMeals.isSetByUser) {
+            transaction.set(mealDocRef, { isSetByUser: newMeals.isSetByUser }, { merge: true });
+            return; // No need to update total meals
         }
+        
+        if (totalMealDiff === 0) return; // No change at all
 
         const currentTotalMeals = memberDoc.data().meals || 0;
         const newTotalMeals = currentTotalMeals + totalMealDiff;
@@ -759,10 +771,11 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
 
     // Calculate the date `days` ago to create a start bound for the query
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days -1));
+    startDate.setDate(startDate.getDate() - (days - 1));
     const startDateString = startDate.toISOString().split('T')[0];
     
-    const q = query(mealsColRef, where(documentId(), '>=', startDateString), orderBy(documentId(), 'desc'), limit(days));
+    // Query without descending order to avoid composite index requirement.
+    const q = query(mealsColRef, where(documentId(), '>=', startDateString));
     const querySnapshot = await getFirestoreDocs(q);
 
     const ledger: MealLedgerEntry[] = [];
@@ -773,7 +786,10 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    return ledger;
+    // Sort and limit on the client side
+    ledger.sort((a, b) => b.date.localeCompare(a.date));
+
+    return ledger.slice(0, days);
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
@@ -826,7 +842,13 @@ export const getTodaysMealStatusesForMess = async (messId: string): Promise<Reco
         const mealDocSnap = await getDoc(mealDocRef);
         
         if (mealDocSnap.exists()) {
-            statuses[userId] = mealDocSnap.data() as MealStatus;
+             const data = mealDocSnap.data();
+             statuses[userId] = {
+                breakfast: data.breakfast ?? 0,
+                lunch: data.lunch ?? 0,
+                dinner: data.dinner ?? 0,
+                isSetByUser: data.isSetByUser ?? false,
+             };
         } else {
             const defaultStatus: MealStatus = {
                 breakfast: mealSettings?.isBreakfastOn ? 1 : 0,
