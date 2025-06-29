@@ -84,6 +84,77 @@ export interface MessMealHistoryEntry extends MealLedgerEntry {
     memberId: string;
 }
 
+export interface Notification {
+    id: string;
+    userId: string; // Specific user ID or 'manager' for all managers
+    message: string;
+    link?: string;
+    read: boolean;
+    timestamp: Timestamp;
+}
+
+// --- Notifications ---
+
+export const createNotification = async (messId: string, notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+    if (!db) return;
+    try {
+        const notificationsRef = collection(db, 'messes', messId, 'notifications');
+        await addDoc(notificationsRef, {
+            ...notificationData,
+            read: false,
+            timestamp: serverTimestamp(),
+        });
+    } catch (error) {
+        console.error("Error creating notification:", error);
+    }
+};
+
+export const onNotificationsChange = (messId: string, userId: string, role: 'manager' | 'member' | undefined, callback: (notifications: Notification[]) => void) => {
+    if (!db || !role) return () => {};
+
+    const notificationsRef = collection(db, 'messes', messId, 'notifications');
+    // Managers get their own notifications + general manager notifications
+    const userAndManagerIds = role === 'manager' ? [userId, 'manager'] : [userId];
+
+    const q = query(
+        notificationsRef, 
+        where('userId', 'in', userAndManagerIds), 
+        orderBy('timestamp', 'desc'), 
+        limit(20)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const notifications = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            timestamp: doc.data().timestamp as Timestamp
+        })) as Notification[];
+        callback(notifications);
+    }, (error) => {
+        console.error("Error fetching notifications in real-time:", error);
+        // Firebase logs an error if the index is missing. This provides a fallback.
+        if (error.code === 'failed-precondition') {
+            console.warn("Firestore index for notifications is missing. Please create it in the Firebase console to enable real-time notifications.");
+        }
+    });
+
+    return unsubscribe;
+}
+
+export const markNotificationsAsRead = async (messId: string, notificationIds: string[]) => {
+    if (!db || notificationIds.length === 0) return;
+    try {
+        const batch = writeBatch(db);
+        notificationIds.forEach(id => {
+            const notifRef = doc(db, 'messes', messId, 'notifications', id);
+            batch.update(notifRef, { read: true });
+        });
+        await batch.commit();
+    } catch (error) {
+        console.error("Error marking notifications as read:", error);
+    }
+}
+
 
 // Create or update user in Firestore
 export const upsertUser = async (user: FirebaseUser) => {
@@ -181,6 +252,12 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
     });
 
     await batch.commit();
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user.displayName || 'A new member'} has joined the mess.`,
+        link: '/dashboard/members'
+    });
+
     return messId;
 }
 
@@ -314,7 +391,7 @@ export const getMemberDetails = async (messId: string, userId: string): Promise<
 export const getExpenses = async (messId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
-    const snapshot = await getFirestoreDocs(expensesCol);
+    const snapshot = await getFirestoreDocs(query(expensesCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
@@ -325,7 +402,7 @@ export const getExpenses = async (messId: string): Promise<Expense[]> => {
 export const getDeposits = async (messId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'deposits');
-    const snapshot = await getFirestoreDocs(depositsCol);
+    const snapshot = await getFirestoreDocs(query(depositsCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
@@ -346,6 +423,11 @@ export const addDeposit = async (messId: string, userId: string, amount: number)
         date: serverTimestamp(),
         status: 'pending'
     });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} submitted a new deposit of ৳${amount} for review.`,
+        link: '/dashboard/review'
+    });
 };
 
 export const addExpense = async (messId: string, userId: string, amount: number, description: string) => {
@@ -360,12 +442,17 @@ export const addExpense = async (messId: string, userId: string, amount: number,
         date: serverTimestamp(),
         status: 'pending'
     });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} submitted a new expense of ৳${amount} for review.`,
+        link: '/dashboard/review'
+    });
 };
 
 export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'pendingDeposits');
-    const snapshot = await getFirestoreDocs(depositsCol);
+    const snapshot = await getFirestoreDocs(query(depositsCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
@@ -376,7 +463,7 @@ export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => 
 export const getPendingExpenses = async (messId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'pendingExpenses');
-    const snapshot = await getFirestoreDocs(expensesCol);
+    const snapshot = await getFirestoreDocs(query(expensesCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
@@ -387,6 +474,7 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
 export const approveDeposit = async (messId: string, depositId: string) => {
     if (!db) throw new Error("Firestore not initialized");
     const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', depositId);
+    let pendingData: any = null;
 
     await runTransaction(db, async (transaction) => {
         const pendingDoc = await transaction.get(pendingDepositRef);
@@ -394,7 +482,7 @@ export const approveDeposit = async (messId: string, depositId: string) => {
             throw "Pending deposit document does not exist!";
         }
 
-        const pendingData = pendingDoc.data();
+        pendingData = pendingDoc.data();
         const memberRef = doc(db, 'messes', messId, 'members', pendingData.userId);
         
         const memberDoc = await transaction.get(memberRef);
@@ -414,37 +502,74 @@ export const approveDeposit = async (messId: string, depositId: string) => {
         transaction.update(memberRef, { balance: newBalance });
         transaction.delete(pendingDepositRef);
     });
+
+    if (pendingData) {
+        await createNotification(messId, {
+            userId: pendingData.userId,
+            message: `Your deposit of ৳${pendingData.amount.toFixed(2)} was approved.`,
+            link: '/dashboard'
+        });
+    }
 };
 
 export const rejectDeposit = async (messId: string, depositId: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    await deleteDoc(doc(db, 'messes', messId, 'pendingDeposits', depositId));
+    const depositRef = doc(db, 'messes', messId, 'pendingDeposits', depositId);
+    const depositSnap = await getDoc(depositRef);
+
+    if (depositSnap.exists()) {
+        const depositData = depositSnap.data();
+        await deleteDoc(depositRef);
+        await createNotification(messId, {
+            userId: depositData.userId,
+            message: `Your deposit of ৳${depositData.amount.toFixed(2)} was rejected.`
+        });
+    }
 };
 
 export const approveExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
     const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', expenseId);
+    let pendingData: any = null;
     
     await runTransaction(db, async (transaction) => {
         const pendingDoc = await transaction.get(pendingExpenseRef);
         if (!pendingDoc.exists()) {
             throw "Pending expense document does not exist!";
         }
-
+        
+        pendingData = pendingDoc.data();
         const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
         transaction.set(newExpenseRef, {
-            ...pendingDoc.data(),
+            ...pendingData,
             status: 'approved',
             approvedAt: serverTimestamp(),
         });
         
         transaction.delete(pendingExpenseRef);
     });
+
+    if (pendingData) {
+        await createNotification(messId, {
+            userId: pendingData.userId,
+            message: `Your expense for "${pendingData.description}" (৳${pendingData.amount.toFixed(2)}) was approved.`,
+            link: '/dashboard'
+        });
+    }
 };
 
 export const rejectExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    await deleteDoc(doc(db, 'messes', messId, 'pendingExpenses', expenseId));
+    const expenseRef = doc(db, 'messes', messId, 'pendingExpenses', expenseId);
+    const expenseSnap = await getDoc(expenseRef);
+    if(expenseSnap.exists()) {
+        const expenseData = expenseSnap.data();
+        await deleteDoc(expenseRef);
+        await createNotification(messId, {
+            userId: expenseData.userId,
+            message: `Your expense for "${expenseData.description}" was rejected.`
+        });
+    }
 };
 
 
@@ -711,6 +836,18 @@ export const transferManagerRole = async (messId: string, currentManagerId: stri
         // Update roles in users collection
         transaction.update(oldManagerUserRef, { role: 'member' });
         transaction.update(newManagerUserRef, { role: 'manager' });
+    });
+
+    // Send notifications after transaction succeeds
+    await createNotification(messId, {
+        userId: newManagerId,
+        message: "You have been made the new manager of the mess.",
+        link: '/dashboard/settings'
+    });
+    await createNotification(messId, {
+        userId: currentManagerId,
+        message: "Your manager role has been transferred. You are now a member.",
+        link: '/dashboard/settings'
     });
 };
 

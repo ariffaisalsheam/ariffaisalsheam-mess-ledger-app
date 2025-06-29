@@ -15,6 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Home,
@@ -27,6 +29,7 @@ import {
   CheckSquare,
   Bell,
   Loader2,
+  Clock,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -39,9 +42,13 @@ import {
     onMemberDetailsChange,
     onPendingItemsChange,
     ensureDailyMealDocs,
+    onNotificationsChange,
+    markNotificationsAsRead,
     type UserProfile, 
-    type Member 
+    type Member,
+    type Notification
 } from "@/services/messService";
+import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardLayout({
   children,
@@ -55,6 +62,7 @@ export default function DashboardLayout({
   const [pageTitle, setPageTitle] = useState("Dashboard");
   const [loading, setLoading] = useState(true);
   const [pendingReviews, setPendingReviews] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -79,6 +87,7 @@ export default function DashboardLayout({
 
     let memberDetailsUnsubscribe: (() => void) | undefined;
     let pendingItemsUnsubscribe: (() => void) | undefined;
+    let notificationsUnsubscribe: (() => void) | undefined;
 
     const setupListeners = async () => {
         try {
@@ -86,15 +95,13 @@ export default function DashboardLayout({
             if (profile) {
                 setUserProfile(profile);
                 if (profile.messId) {
-                    // Ensure all members have today's meal doc created.
-                    // This is a workaround for not having a daily scheduled function.
-                    // It runs once when any user loads the dashboard.
                     await ensureDailyMealDocs(profile.messId);
 
                     const mess = await getMessById(profile.messId);
                     setMessName(mess?.name as string || "No Mess");
 
                     memberDetailsUnsubscribe = onMemberDetailsChange(profile.messId, authUser.uid, setMemberDetails);
+                    notificationsUnsubscribe = onNotificationsChange(profile.messId, authUser.uid, profile.role, setNotifications);
 
                     if (profile.role === 'manager') {
                         pendingItemsUnsubscribe = onPendingItemsChange(profile.messId, setPendingReviews);
@@ -120,6 +127,7 @@ export default function DashboardLayout({
     return () => {
       memberDetailsUnsubscribe?.();
       pendingItemsUnsubscribe?.();
+      notificationsUnsubscribe?.();
     };
   }, [authUser, router]);
   
@@ -172,6 +180,16 @@ export default function DashboardLayout({
   const managerNavItems = [
     { href: "/dashboard/review", icon: <CheckSquare className="h-4 w-4" />, label: "Review", badge: pendingReviews },
   ];
+  
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleBellClick = () => {
+      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+      if (unreadIds.length > 0 && userProfile?.messId) {
+          markNotificationsAsRead(userProfile.messId, unreadIds);
+      }
+  };
+
 
   if (loading) {
     return (
@@ -256,10 +274,39 @@ export default function DashboardLayout({
           <div className="w-full flex-1">
              <h1 className="font-headline text-xl">{pageTitle}</h1>
           </div>
-          <Button variant="outline" size="icon" className="h-8 w-8">
-            <Bell className="h-4 w-4" />
-            <span className="sr-only">Toggle notifications</span>
-          </Button>
+          <Popover onOpenChange={(open) => { if (open) handleBellClick(); }}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8 relative">
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-white">
+                            {unreadCount}
+                        </span>
+                    )}
+                    <span className="sr-only">Toggle notifications</span>
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0">
+                <div className="p-3 border-b">
+                    <h3 className="font-medium font-headline text-sm">Notifications</h3>
+                </div>
+                <ScrollArea className="h-96">
+                    {notifications.length > 0 ? (
+                        notifications.map(n => (
+                            <div key={n.id} className="p-3 border-b last:border-b-0 hover:bg-muted/50">
+                                <p className={cn("text-sm", !n.read && "font-semibold")}>{n.message}</p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                    <Clock className="h-3 w-3" />
+                                    {n.timestamp ? formatDistanceToNow(n.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                </p>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-muted-foreground text-center p-8">No new notifications.</p>
+                    )}
+                </ScrollArea>
+            </PopoverContent>
+          </Popover>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
