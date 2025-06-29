@@ -64,6 +64,7 @@ export default function ReportsPage() {
     
     const monthOptions = Array.from({ length: 12 }, (_, i) => {
         const date = new Date();
+        date.setDate(1); // Set to first day of month to avoid overflow issues
         date.setMonth(date.getMonth() - i);
         return {
             value: `${date.getFullYear()}-${date.getMonth()}`,
