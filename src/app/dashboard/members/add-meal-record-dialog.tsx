@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { updateMealForDate, getMealStatusForDate, type MealStatus } from '@/services/messService';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 interface AddMealRecordDialogProps {
@@ -28,14 +28,22 @@ interface AddMealRecordDialogProps {
   memberId: string;
   memberName: string;
   onSuccess: () => void;
+  initialDate?: string; // e.g., "2024-06-30"
 }
 
-export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, memberName, onSuccess }: AddMealRecordDialogProps) {
-  const [date, setDate] = useState<Date | undefined>(new Date());
+export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, memberName, onSuccess, initialDate }: AddMealRecordDialogProps) {
+  const [date, setDate] = useState<Date | undefined>();
   const [meals, setMeals] = useState<MealStatus>({ breakfast: 0, lunch: 0, dinner: 0 });
   const [submitting, setSubmitting] = useState(false);
   const [loadingDate, setLoadingDate] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    // When dialog opens or initialDate changes, set the date
+    if(isOpen) {
+        setDate(initialDate ? parseISO(initialDate) : new Date());
+    }
+  }, [isOpen, initialDate]);
 
   useEffect(() => {
     if (isOpen && date && memberId) {
@@ -67,7 +75,7 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
     setSubmitting(true);
     const dateStr = format(date, "yyyy-MM-dd");
     try {
-      await updateMealForDate(messId, memberId, dateStr, meals);
+      await updateMealForDate(messId, memberId, dateStr, { ...meals, isSetByUser: true });
       toast({
         title: "Success!",
         description: `Meal record for ${memberName} on ${format(date, 'PPP')} has been updated.`,
@@ -85,18 +93,9 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
       setSubmitting(false);
     }
   };
-  
-  const handleOpenChange = (open: boolean) => {
-    setIsOpen(open);
-    if (!open) {
-      // Reset state when dialog is closed to avoid showing stale data.
-      setDate(new Date());
-      setMeals({ breakfast: 0, lunch: 0, dinner: 0 });
-    }
-  };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline">Add/Edit Meal Record</DialogTitle>
@@ -115,6 +114,7 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
                       "justify-start text-left font-normal",
                       !date && "text-muted-foreground"
                     )}
+                    disabled={!!initialDate} // Disable changing date when editing
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {date ? format(date, "PPP") : <span>Pick a date</span>}

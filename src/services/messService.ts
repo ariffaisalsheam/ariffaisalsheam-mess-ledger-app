@@ -74,6 +74,7 @@ export interface MealStatus {
     breakfast: number;
     lunch: number;
     dinner: number;
+    isSetByUser?: boolean;
 }
 
 export interface MealLedgerEntry extends MealStatus {
@@ -207,7 +208,7 @@ export const upsertUser = async (user: FirebaseUser) => {
         photoURL: user.photoURL,
      });
   } else {
-     await setDoc(userRef, userData);
+     await setDoc(userRef, userData, { merge: true });
   }
 
   return userRef;
@@ -651,10 +652,7 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
     if (mealDocSnap.exists()) {
         return mealDocSnap.data() as MealStatus;
     } else {
-        // Doc doesn't exist for today, create it with defaults and return them
-        const defaultStatus: MealStatus = { breakfast: 0, lunch: 0, dinner: 0 };
-        // Don't auto-create here, let ensureDailyMealDocs handle it.
-        return defaultStatus;
+        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
     }
 }
 
@@ -690,8 +688,13 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
         transaction.update(memberRef, { meals: newTotalMeals });
 
         // Update today's meal status document
-        transaction.set(mealDocRef, { [meal]: newCount }, { merge: true });
+        transaction.set(mealDocRef, { [meal]: newCount, isSetByUser: true }, { merge: true });
     });
+};
+
+export const updateMealsForToday = async (messId: string, userId: string, newMeals: MealStatus) => {
+    if (!db) throw new Error("Firestore not initialized");
+    await updateMealForDate(messId, userId, new Date().toISOString().split('T')[0], { ...newMeals, isSetByUser: true });
 };
 
 export const getMealStatusForDate = async (messId: string, userId: string, dateStr: string): Promise<MealStatus> => {
@@ -702,7 +705,7 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
     if (mealDocSnap.exists()) {
         return mealDocSnap.data() as MealStatus;
     } else {
-        return { breakfast: 0, lunch: 0, dinner: 0 };
+        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
     }
 }
 
@@ -725,13 +728,17 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             oldMeals = mealDoc.data() as MealStatus;
         }
 
-        const breakfastDiff = newMeals.breakfast - oldMeals.breakfast;
-        const lunchDiff = newMeals.lunch - oldMeals.lunch;
-        const dinnerDiff = newMeals.dinner - oldMeals.dinner;
+        const breakfastDiff = (newMeals.breakfast ?? 0) - (oldMeals.breakfast ?? 0);
+        const lunchDiff = (newMeals.lunch ?? 0) - (oldMeals.lunch ?? 0);
+        const dinnerDiff = (newMeals.dinner ?? 0) - (oldMeals.dinner ?? 0);
         const totalMealDiff = breakfastDiff + lunchDiff + dinnerDiff;
 
         if (totalMealDiff === 0) {
-            return; // No change needed
+             // If only isSetByUser is changing
+            if (newMeals.isSetByUser !== oldMeals.isSetByUser) {
+                transaction.set(mealDocRef, { isSetByUser: newMeals.isSetByUser }, { merge: true });
+            }
+            return;
         }
 
         const currentTotalMeals = memberDoc.data().meals || 0;
@@ -755,7 +762,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     startDate.setDate(startDate.getDate() - (days -1));
     const startDateString = startDate.toISOString().split('T')[0];
     
-    const q = query(mealsColRef, where(documentId(), '>=', startDateString));
+    const q = query(mealsColRef, where(documentId(), '>=', startDateString), orderBy(documentId(), 'desc'), limit(days));
     const querySnapshot = await getFirestoreDocs(q);
 
     const ledger: MealLedgerEntry[] = [];
@@ -766,10 +773,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    // Sort by date descending on the client side
-    ledger.sort((a, b) => b.date.localeCompare(a.date));
-
-    return ledger.slice(0, days);
+    return ledger;
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
@@ -813,6 +817,9 @@ export const getTodaysMealStatusesForMess = async (messId: string): Promise<Reco
     
     const statuses: Record<string, MealStatus> = {};
     
+    const mess = await getMessById(messId);
+    const mealSettings = mess?.mealSettings;
+
     await Promise.all(membersSnap.docs.map(async (memberDoc) => {
         const userId = memberDoc.id;
         const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
@@ -821,8 +828,13 @@ export const getTodaysMealStatusesForMess = async (messId: string): Promise<Reco
         if (mealDocSnap.exists()) {
             statuses[userId] = mealDocSnap.data() as MealStatus;
         } else {
-            // Defaulting to 0 for each meal if document doesn't exist
-            statuses[userId] = { breakfast: 0, lunch: 0, dinner: 0 };
+            const defaultStatus: MealStatus = {
+                breakfast: mealSettings?.isBreakfastOn ? 1 : 0,
+                lunch: mealSettings?.isLunchOn ? 1 : 0,
+                dinner: mealSettings?.isDinnerOn ? 1 : 0,
+                isSetByUser: false,
+            };
+            statuses[userId] = defaultStatus;
         }
     }));
 
@@ -835,6 +847,7 @@ export const ensureDailyMealDocs = async (messId: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const membersRef = collection(db, 'messes', messId, 'members');
     const membersSnap = await getFirestoreDocs(membersRef);
+    const mess = await getMessById(messId);
 
     const batch = writeBatch(db);
     let writes = 0;
@@ -848,12 +861,28 @@ export const ensureDailyMealDocs = async (messId: string) => {
     
     mealDocSnaps.forEach((mealDocSnap, index) => {
         if (!mealDocSnap.exists()) {
-            const mealDocRef = doc(db, 'messes', messId, 'members', membersSnap.docs[index].id, 'meals', todayStr);
-            batch.set(mealDocRef, {
-                breakfast: 0,
-                lunch: 0,
-                dinner: 0,
-            });
+            const memberId = membersSnap.docs[index].id;
+            const mealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', todayStr);
+            const memberRef = doc(db, 'messes', messId, 'members', memberId);
+            
+            const defaultStatus: MealStatus = {
+                breakfast: mess?.mealSettings?.isBreakfastOn ? 1 : 0,
+                lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
+                dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
+                isSetByUser: false,
+            };
+
+            const mealTotal = defaultStatus.breakfast + defaultStatus.lunch + defaultStatus.dinner;
+
+            batch.set(mealDocRef, defaultStatus);
+            // We need to update the member's total meal count as well
+            // This requires a transaction for safety if multiple users open the app at the same time on a new day.
+            // For now, let's assume this function is called infrequently and a simple update is okay.
+            // A better solution would involve a cloud function triggered daily.
+            const memberData = membersSnap.docs[index].data();
+            const currentMeals = memberData.meals || 0;
+            batch.update(memberRef, { meals: currentMeals + mealTotal });
+
             writes++;
         }
     });
@@ -912,21 +941,20 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         const userRef = doc(db, 'users', memberId);
 
         const memberDoc = await transaction.get(memberRef);
-        if (memberDoc.exists() && memberDoc.data().role === 'manager') {
+        if (!memberDoc.exists()) {
+            // Member already removed or never existed.
+            return;
+        }
+        
+        if (memberDoc.data().role === 'manager') {
             throw new Error("A manager cannot be removed. Transfer the role first.");
         }
 
-        if (memberDoc.exists()) {
-            transaction.delete(memberRef);
-        }
-
+        transaction.delete(memberRef);
+        
         const userDoc = await transaction.get(userRef);
         if (userDoc.exists()) {
             transaction.update(userRef, { messId: '', role: '' });
         }
     });
 };
-
-    
-
-    
