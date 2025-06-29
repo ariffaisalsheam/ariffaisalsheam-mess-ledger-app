@@ -17,7 +17,8 @@ import {
   deleteDoc,
   writeBatch,
   onSnapshot,
-  orderBy
+  orderBy,
+  documentId
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -118,18 +119,26 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     const unsubscribes: (() => void)[] = [];
 
     const combineAndCallback = () => {
-        // Combine, sort by timestamp descending, and take the most recent 20
-        const allNotifications = [...personalNotifications, ...managerNotifications];
-        allNotifications.sort((a, b) => {
+        // De-duplicate notifications
+        const allNotificationsMap = new Map<string, Notification>();
+        [...personalNotifications, ...managerNotifications].forEach(n => {
+            allNotificationsMap.set(n.id, n);
+        });
+        
+        const uniqueNotifications = Array.from(allNotificationsMap.values());
+        
+        // Sort by timestamp descending
+        uniqueNotifications.sort((a, b) => {
             const timeA = a.timestamp?.toMillis() || 0;
             const timeB = b.timestamp?.toMillis() || 0;
             return timeB - timeA;
         });
-        callback(allNotifications.slice(0, 20));
+
+        callback(uniqueNotifications.slice(0, 20));
     };
 
     // Listener for personal notifications
-    const personalQuery = query(notificationsRef, where('userId', '==', userId));
+    const personalQuery = query(notificationsRef, where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
@@ -144,7 +153,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     // If the user is a manager, also listen for manager-wide notifications
     if (role === 'manager') {
-        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'));
+        const managerQuery = query(notificationsRef, where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             managerNotifications = snapshot.docs.map(doc => ({
                 id: doc.id,
@@ -183,13 +192,24 @@ export const markNotificationsAsRead = async (messId: string, notificationIds: s
 // Create or update user in Firestore
 export const upsertUser = async (user: FirebaseUser) => {
   const userRef = doc(db!, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  
   const userData: Partial<UserProfile> = {
     uid: user.uid,
     email: user.email,
     displayName: user.displayName,
     photoURL: user.photoURL,
   };
-  await setDoc(userRef, userData, { merge: true });
+
+  if(userSnap.exists()){
+     await updateDoc(userRef, {
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+     });
+  } else {
+     await setDoc(userRef, userData);
+  }
+
   return userRef;
 };
 
@@ -735,7 +755,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     startDate.setDate(startDate.getDate() - (days -1));
     const startDateString = startDate.toISOString().split('T')[0];
     
-    const q = query(mealsColRef, where('__name__', '>=', startDateString));
+    const q = query(mealsColRef, where(documentId(), '>=', startDateString));
     const querySnapshot = await getFirestoreDocs(q);
 
     const ledger: MealLedgerEntry[] = [];
@@ -906,3 +926,5 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         }
     });
 };
+
+    
