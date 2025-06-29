@@ -139,7 +139,7 @@ export default function DashboardLayout({
         const page = pathname.split('/').pop();
         switch(page) {
             case 'meals': title = 'Manage Your Meals'; break;
-            case 'members': title = 'MessX Members'; break;
+            case 'members': title = 'Mess Members'; break;
             case 'settings': title = 'Settings'; break;
             case 'review': title = 'Review Queue'; break;
             default: title = 'Dashboard';

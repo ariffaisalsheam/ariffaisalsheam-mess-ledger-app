@@ -123,7 +123,7 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
         <CardHeader>
           <CardTitle className="font-headline">Member List</CardTitle>
           <CardDescription>
-            Here are all the members currently in your MessX. 
+            Here are all the members currently in your Mess. 
             {isManager 
               ? " As a manager, you can override their meal count for today." 
               : " Only managers can override meal counts."
@@ -190,7 +190,7 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
                                     <>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem className="text-red-500">
-                                            Remove from MessX
+                                            Remove from Mess
                                         </DropdownMenuItem>
                                     </>
                                 )}

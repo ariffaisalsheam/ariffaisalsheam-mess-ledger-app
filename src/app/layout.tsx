@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'MessX by Xapps',
-  description: 'Your all-in-one solution.',
+  title: 'KhanaConnect',
+  description: 'Mess management made simple.',
 };
 
 export default function RootLayout({

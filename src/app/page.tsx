@@ -20,7 +20,7 @@ export default function SplashPage() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Logo />
         <h1 className="text-5xl font-bold font-headline text-primary">
-          MessX
+          KhanaConnect
         </h1>
         <p className="text-lg font-semibold text-muted-foreground">
           by Xapps

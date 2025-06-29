@@ -11,7 +11,7 @@ export default function WelcomePage() {
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
         <div className="mb-8 flex flex-col items-center text-center">
             <Logo />
-            <h1 className="mt-4 text-4xl font-bold font-headline text-primary">Welcome to MessX!</h1>
+            <h1 className="mt-4 text-4xl font-bold font-headline text-primary">Welcome to KhanaConnect!</h1>
             <p className="mt-2 text-lg text-muted-foreground">Let's get you set up. What would you like to do?</p>
         </div>
         <div className="grid w-full max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
@@ -20,13 +20,13 @@ export default function WelcomePage() {
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                         <PlusCircle className="h-6 w-6 text-primary"/>
                     </div>
-                    <CardTitle className="font-headline text-2xl">Create a New MessX</CardTitle>
+                    <CardTitle className="font-headline text-2xl">Create a New Mess</CardTitle>
                     <CardDescription>Start from scratch, invite your friends, and become the manager of your own mess.</CardDescription>
                 </CardHeader>
                 <CardFooter>
                     <Link href="/create-mess" className="w-full">
                         <Button className="w-full">
-                            Create a MessX <ArrowRight className="ml-2 h-4 w-4" />
+                            Create a Mess <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                     </Link>
                 </CardFooter>
@@ -37,13 +37,13 @@ export default function WelcomePage() {
                     <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
                         <Users className="h-6 w-6 text-primary"/>
                     </div>
-                    <CardTitle className="font-headline text-2xl">Join an Existing MessX</CardTitle>
+                    <CardTitle className="font-headline text-2xl">Join an Existing Mess</CardTitle>
                     <CardDescription>Already have an invite code or a magic link? Join your friends and start managing meals.</CardDescription>
                 </CardHeader>
                 <CardFooter>
                     <Link href="/join-mess" className="w-full">
                         <Button className="w-full">
-                            Join a MessX <ArrowRight className="ml-2 h-4 w-4" />
+                            Join a Mess <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                     </Link>
                 </CardFooter>

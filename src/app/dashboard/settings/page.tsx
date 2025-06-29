@@ -179,16 +179,16 @@ export default function SettingsPage() {
         <>
             <Card>
                 <CardHeader>
-                <CardTitle className="font-headline">MessX Information</CardTitle>
+                <CardTitle className="font-headline">Mess Information</CardTitle>
                 <CardDescription>Update your mess's general details and invite codes.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="mess-name">MessX Name</Label>
+                    <Label htmlFor="mess-name">Mess Name</Label>
                     <Input id="mess-name" defaultValue={messData?.name || ''} />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="invite-code">MessX Invite Code</Label>
+                    <Label htmlFor="invite-code">Mess Invite Code</Label>
                     <div className="flex gap-2">
                         <Input id="invite-code" readOnly value={messData?.inviteCode || 'N/A'} />
                         <Button variant="outline" size="icon" onClick={handleCopy} disabled={!messData?.inviteCode}><Copy className="h-4 w-4" /></Button>
@@ -347,10 +347,10 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="flex items-center justify-between">
                     <div>
-                        <p className="font-medium">Delete this MessX</p>
-                        <p className="text-sm text-muted-foreground">Once you delete a MessX, there is no going back. Please be certain.</p>
+                        <p className="font-medium">Delete this Mess</p>
+                        <p className="text-sm text-muted-foreground">Once you delete a Mess, there is no going back. Please be certain.</p>
                     </div>
-                    <Button variant="destructive">Delete MessX</Button>
+                    <Button variant="destructive">Delete Mess</Button>
                 </CardContent>
             </Card>
         </>
@@ -358,10 +358,10 @@ export default function SettingsPage() {
         <Card>
             <CardHeader>
                 <CardTitle className="font-headline">Settings</CardTitle>
-                <CardDescription>Personal and MessX settings.</CardDescription>
+                <CardDescription>Personal and Mess settings.</CardDescription>
             </CardHeader>
             <CardContent>
-                <p>You do not have permission to view or edit MessX settings. Please contact your mess manager for assistance.</p>
+                <p>You do not have permission to view or edit Mess settings. Please contact your mess manager for assistance.</p>
             </CardContent>
         </Card>
       )}

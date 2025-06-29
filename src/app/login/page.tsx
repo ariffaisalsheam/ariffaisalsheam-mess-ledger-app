@@ -11,7 +11,7 @@ import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
-import { upsertUser } from "@/services/messService";
+import { upsertUser, getUserProfile } from "@/services/messService";
 import { Loader2 } from "lucide-react";
 
 export default function LoginPage() {
@@ -20,6 +20,15 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const handleSuccessfulLogin = async (uid: string) => {
+    const profile = await getUserProfile(uid);
+    if (profile?.messId) {
+      router.push("/dashboard");
+    } else {
+      router.push("/welcome");
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     if (!auth) {
@@ -36,7 +45,7 @@ export default function LoginPage() {
     try {
       const result = await signInWithPopup(auth, provider);
       await upsertUser(result.user);
-      router.push("/welcome");
+      await handleSuccessfulLogin(result.user.uid);
     } catch (error) {
       console.error("Error signing in with Google: ", error);
       toast({
@@ -63,7 +72,7 @@ export default function LoginPage() {
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         await upsertUser(userCredential.user);
-        router.push("/welcome");
+        await handleSuccessfulLogin(userCredential.user.uid);
     } catch (error: any) {
         console.error("Error signing in with email: ", error);
         let description = "Could not sign you in. Please check your credentials and try again.";
