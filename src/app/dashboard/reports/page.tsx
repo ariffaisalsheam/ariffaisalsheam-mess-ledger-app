@@ -64,8 +64,7 @@ export default function ReportsPage() {
     
     const monthOptions = Array.from({ length: 12 }, (_, i) => {
         const date = new Date();
-        date.setDate(1); // Set to first day of month to avoid overflow issues
-        date.setMonth(date.getMonth() - i);
+        date.setMonth(date.getMonth() - i, 1); // Set to first day of month to avoid overflow issues
         return {
             value: `${date.getFullYear()}-${date.getMonth()}`,
             label: date.toLocaleString('default', { month: 'long', year: 'numeric' })
@@ -159,7 +158,7 @@ export default function ReportsPage() {
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead>Member</TableHead>
-                                                <TableHead className="text-right">Meals</TableHead>
+                                                <TableHead className="text-right">Total Meals (Guests)</TableHead>
                                                 <TableHead className="text-right">Meal Cost</TableHead>
                                                 <TableHead className="text-right">Deposits</TableHead>
                                                 <TableHead className="text-right">Balance</TableHead>
@@ -177,7 +176,12 @@ export default function ReportsPage() {
                                                             <span className="font-medium">{member.memberName}</span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right font-mono">{member.totalMeals.toFixed(2)}</TableCell>
+                                                    <TableCell className="text-right font-mono">
+                                                        {member.totalMeals.toFixed(2)}
+                                                        {member.totalGuestMeals > 0 && (
+                                                            <span className="text-muted-foreground"> ({member.totalGuestMeals.toFixed(2)})</span>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell className="text-right font-mono text-red-500">- ৳{member.mealCost.toFixed(2)}</TableCell>
                                                     <TableCell className="text-right font-mono text-green-500">+ ৳{member.totalDeposits.toFixed(2)}</TableCell>
                                                     <TableCell className={`text-right font-bold ${member.finalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>

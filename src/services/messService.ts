@@ -113,6 +113,7 @@ export interface MemberReport {
     memberName: string;
     avatar: string;
     totalMeals: number;
+    totalGuestMeals: number;
     mealCost: number;
     totalDeposits: number;
     finalBalance: number;
@@ -149,23 +150,36 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     if (!db || !role) return () => {};
 
     const qPersonal = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
-    const qManager = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'));
+    const qManager = query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId]));
     
-    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
-        const personalNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-        if (role !== 'manager') {
-             personalNotifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-             callback(personalNotifications);
+    let combinedNotifications: Notification[] = [];
+    let personalNotifs: Notification[] = [];
+    let managerNotifs: Notification[] = [];
+
+    const updateAndCallback = () => {
+        if (role === 'manager') {
+            const allNotifs = [...personalNotifs, ...managerNotifs];
+            const uniqueNotifs = Array.from(new Map(allNotifs.map(n => [n.id, n])).values());
+            uniqueNotifs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            callback(uniqueNotifs);
+        } else {
+             personalNotifs.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+             callback(personalNotifs);
         }
+    }
+
+    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
+        personalNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+        updateAndCallback();
     }, (error) => console.error("Error on personal notifications snapshot:", error));
 
-    const unsubManager = onSnapshot(query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId])), (snapshot) => {
+    const unsubManager = onSnapshot(qManager, (snapshot) => {
         if (role === 'manager') {
-            const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-            notifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-            callback(notifications);
+            managerNotifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+            updateAndCallback();
         }
     }, (error) => console.error("Error on manager notifications snapshot:", error));
+
 
     return () => {
         unsubPersonal();
@@ -467,6 +481,7 @@ export const getDepositsForUser = async (messId: string, userId: string): Promis
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Deposit;
     });
+    // Sort client-side to avoid needing a composite index
     return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
@@ -480,6 +495,7 @@ export const getExpensesForUser = async (messId: string, userId: string): Promis
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Expense;
     });
+    // Sort client-side to avoid needing a composite index
     return data.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 };
 
@@ -941,24 +957,28 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         
         // Only count meals that were explicitly set by a user. Default meals (isSetByUser:false) are not part of this calculation.
-        const oldMealTotalForDate = (oldMealData.isSetByUser || (mealCountChange !== 0 && !mealDoc.exists())) // Consider old total 0 if not set by user, unless it's a new doc
+        const oldMealTotalForDate = (oldMealData.isSetByUser)
             ? (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0)
             : 0;
-
+        
         const newMealTotalForDate = (newMeals.isSetByUser) 
             ? (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0)
             : 0;
 
         const mealCountChange = newMealTotalForDate - oldMealTotalForDate;
-        
         const currentTotalMeals = memberDoc.data().meals || 0;
         
-        if (mealCountChange !== 0 || !mealDoc.exists() || (newMeals.isSetByUser !== oldMealData.isSetByUser)) {
-             if(mealCountChange !== 0) {
-                const newTotalMeals = currentTotalMeals + mealCountChange;
-                transaction.update(memberRef, { meals: newTotalMeals });
-            }
+        const isNewRecord = !mealDoc.exists();
+        const userStatusChanged = newMeals.isSetByUser !== oldMealData.isSetByUser;
+        
+        if (mealCountChange !== 0 || isNewRecord || userStatusChanged) {
             transaction.set(mealDocRef, newMeals, { merge: true });
+            
+            // Only update total meals if there's a real change in meal count.
+            if (mealCountChange !== 0) {
+                 const newTotalMeals = currentTotalMeals + mealCountChange;
+                 transaction.update(memberRef, { meals: newTotalMeals });
+            }
         }
     });
 };
@@ -969,7 +989,12 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
     // The orderBy on documentId() requires an index that might not be auto-created.
     // We fetch without ordering and sort client-side to avoid this.
-    const q = query(mealsColRef, limit(days));
+    // Let's try to query with date limit and sort locally.
+    const dateLimit = new Date();
+    dateLimit.setDate(dateLimit.getDate() - days);
+    const dateLimitStr = dateLimit.toISOString().split('T')[0];
+
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
     const querySnapshot = await getFirestoreDocs(q);
     
     const allEntries: MealLedgerEntry[] = [];
@@ -1231,39 +1256,75 @@ const getMealsForMonth = async (messId: string, memberId: string, year: number, 
     return totalMeals;
 }
 
+const getGuestMealsForMonth = async (messId: string, year: number, month: number): Promise<Record<string, number>> => {
+    if (!db) return {};
+
+    const monthStrStart = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
+    const nextMonthDate = new Date(year, month + 1, 1);
+    const nextMonthStrStart = `${nextMonthDate.getFullYear()}-${(nextMonthDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
+
+    const guestMealLogCol = collection(db, 'messes', messId, 'guestMealLog');
+    const q = query(guestMealLogCol, where("date", ">=", monthStrStart), where("date", "<", nextMonthStrStart));
+    const snapshot = await getFirestoreDocs(q);
+
+    const guestMealsByMember: Record<string, number> = {};
+    snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const hostId = data.hostUserId;
+        const totalGuestMeals = (data.breakfast || 0) + (data.lunch || 0) + (data.dinner || 0);
+
+        if (hostId) {
+            if (!guestMealsByMember[hostId]) {
+                guestMealsByMember[hostId] = 0;
+            }
+            guestMealsByMember[hostId] += totalGuestMeals;
+        }
+    });
+
+    return guestMealsByMember;
+}
+
 export const generateMonthlyReport = async (messId: string, year: number, month: number): Promise<MonthlyReport> => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const [members, expenses, deposits] = await Promise.all([
+    const [members, expenses, deposits, guestMeals] = await Promise.all([
         getMembersOfMess(messId),
         getExpensesForMonth(messId, year, month),
         getDepositsForMonth(messId, year, month),
+        getGuestMealsForMonth(messId, year, month),
     ]);
 
     const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
     const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
     
-    const mealPromises = members.map(member => getMealsForMonth(messId, member.id, year, month));
-    const memberMeals = await Promise.all(mealPromises);
+    const personalMealPromises = members.map(member => getMealsForMonth(messId, member.id, year, month));
+    const memberPersonalMeals = await Promise.all(personalMealPromises);
     
-    const memberData = members.map((member, index) => ({
-        ...member,
-        monthlyMeals: memberMeals[index],
-        monthlyDeposits: deposits.filter(d => d.userId === member.id).reduce((sum, item) => sum + item.amount, 0)
-    }));
+    const memberData = members.map((member, index) => {
+        const personalMeals = memberPersonalMeals[index];
+        const memberGuestMeals = guestMeals[member.id] || 0;
+        return {
+            ...member,
+            monthlyPersonalMeals: personalMeals,
+            monthlyGuestMeals: memberGuestMeals,
+            monthlyTotalMeals: personalMeals + memberGuestMeals,
+            monthlyDeposits: deposits.filter(d => d.userId === member.id).reduce((sum, item) => sum + item.amount, 0)
+        }
+    });
 
-    const totalMeals = memberMeals.reduce((sum, meals) => sum + meals, 0);
+    const totalMeals = memberData.reduce((sum, member) => sum + member.monthlyTotalMeals, 0);
     const mealRate = totalMeals > 0 ? totalExpenses / totalMeals : 0;
     
     const memberReports: MemberReport[] = memberData.map(member => {
-        const mealCost = member.monthlyMeals * mealRate;
+        const mealCost = member.monthlyTotalMeals * mealRate;
         const finalBalance = member.monthlyDeposits - mealCost;
 
         return {
             memberId: member.id,
             memberName: member.name,
             avatar: member.avatar,
-            totalMeals: member.monthlyMeals,
+            totalMeals: member.monthlyTotalMeals,
+            totalGuestMeals: member.monthlyGuestMeals,
             mealCost,
             totalDeposits: member.monthlyDeposits,
             finalBalance,
