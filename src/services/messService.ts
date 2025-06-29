@@ -159,17 +159,16 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         q = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
     }
     
-    const finalQuery = query(q, orderBy('timestamp', 'desc'));
-
-    const unsubscribe = onSnapshot(finalQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
         
-        // As manager can get duplicate notifications (one for 'manager' and one for their 'userId'), we filter them
+        const sorted = notifications.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis());
+
         if (role === 'manager') {
-            const uniqueNotifications = Array.from(new Map(notifications.map(n => [n.id, n])).values());
-            callback(uniqueNotifications.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis()));
+            const uniqueNotifications = Array.from(new Map(sorted.map(n => [n.id, n])).values());
+            callback(uniqueNotifications);
         } else {
-            callback(notifications);
+            callback(sorted);
         }
 
     }, (error) => console.error("Error on notifications snapshot:", error));
@@ -1013,13 +1012,18 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
     const querySnapshot = await getFirestoreDocs(q);
     
-    return querySnapshot.docs.map(doc => ({
+    const ledger = querySnapshot.docs.map(doc => ({
         date: doc.id,
         ...(doc.data() as MealStatus)
     }));
+
+    // Sort descending by date
+    ledger.sort((a, b) => b.date.localeCompare(a.date));
+
+    return ledger;
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {
@@ -1256,75 +1260,49 @@ const getDepositsForMonth = async (messId: string, year: number, month: number):
     });
 };
 
-const getMealsForMonth = async (messId: string, memberId: string, year: number, month: number): Promise<number> => {
-    if (!db) return 0;
+const getMealsForMonth = async (messId: string, memberId: string, year: number, month: number): Promise<{personalMeals: number, guestMeals: number}> => {
+    if (!db) return { personalMeals: 0, guestMeals: 0 };
     
     const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`; // YYYY-MM
     const mealsColRef = collection(db, 'messes', messId, 'members', memberId, 'meals');
     const q = query(mealsColRef, where(documentId(), ">=", monthStr + '-01'), where(documentId(), "<=", monthStr + '-31'));
     const querySnapshot = await getFirestoreDocs(q);
     
-    let totalMeals = 0;
+    let totalPersonalMeals = 0;
+    let totalGuestMeals = 0;
+
     querySnapshot.forEach(doc => {
         const data = doc.data() as MealStatus;
-        totalMeals += (data.breakfast || 0) + (data.lunch || 0) + (data.dinner || 0);
+        totalPersonalMeals += (data.breakfast || 0) + (data.lunch || 0) + (data.dinner || 0);
+        totalGuestMeals += (data.guestBreakfast || 0) + (data.guestLunch || 0) + (data.guestDinner || 0);
     });
 
-    return totalMeals;
+    return { personalMeals: totalPersonalMeals, guestMeals: totalGuestMeals };
 }
 
-const getGuestMealsForMonth = async (messId: string, year: number, month: number): Promise<Record<string, number>> => {
-    if (!db) return {};
-
-    const monthStrStart = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
-    const nextMonthDate = new Date(year, month + 1, 1);
-    const nextMonthStrStart = `${nextMonthDate.getFullYear()}-${(nextMonthDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
-
-    const guestMealLogCol = collection(db, 'messes', messId, 'guestMealLog');
-    const q = query(guestMealLogCol, where("date", ">=", monthStrStart), where("date", "<", nextMonthStrStart));
-    const snapshot = await getFirestoreDocs(q);
-
-    const guestMealsByMember: Record<string, number> = {};
-    snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const hostId = data.hostUserId;
-        const totalGuestMeals = (data.breakfast || 0) + (data.lunch || 0) + (data.dinner || 0);
-
-        if (hostId) {
-            if (!guestMealsByMember[hostId]) {
-                guestMealsByMember[hostId] = 0;
-            }
-            guestMealsByMember[hostId] += totalGuestMeals;
-        }
-    });
-
-    return guestMealsByMember;
-}
 
 export const generateMonthlyReport = async (messId: string, year: number, month: number): Promise<MonthlyReport> => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const [members, expenses, deposits, guestMeals] = await Promise.all([
+    const [members, expenses, deposits] = await Promise.all([
         getMembersOfMess(messId),
         getExpensesForMonth(messId, year, month),
         getDepositsForMonth(messId, year, month),
-        getGuestMealsForMonth(messId, year, month),
     ]);
 
     const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
     const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
     
-    const personalMealPromises = members.map(member => getMealsForMonth(messId, member.id, year, month));
-    const memberPersonalMeals = await Promise.all(personalMealPromises);
+    const mealPromises = members.map(member => getMealsForMonth(messId, member.id, year, month));
+    const memberMeals = await Promise.all(mealPromises);
     
     const memberData = members.map((member, index) => {
-        const personalMeals = memberPersonalMeals[index];
-        const memberGuestMeals = guestMeals[member.id] || 0;
+        const { personalMeals, guestMeals } = memberMeals[index];
         return {
             ...member,
             monthlyPersonalMeals: personalMeals,
-            monthlyGuestMeals: memberGuestMeals,
-            monthlyTotalMeals: personalMeals + memberGuestMeals,
+            monthlyGuestMeals: guestMeals,
+            monthlyTotalMeals: personalMeals + guestMeals,
             monthlyDeposits: deposits.filter(d => d.userId === member.id).reduce((sum, item) => sum + item.amount, 0)
         }
     });
