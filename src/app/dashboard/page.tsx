@@ -15,6 +15,7 @@ import {
   getMemberDetails,
   getExpenses,
   getDeposits,
+  getTotalMessMeals,
   type UserProfile,
   type Member,
   type Expense,
@@ -31,20 +32,23 @@ export default function DashboardPage() {
   const [memberDetails, setMemberDetails] = useState<Member | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
+  const [totalMessMeals, setTotalMessMeals] = useState(0);
   const [isDepositDialogOpen, setDepositDialogOpen] = useState(false);
   const [isExpenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async (messId: string, uid: string) => {
       try {
-          const [details, expensesData, depositsData] = await Promise.all([
+          const [details, expensesData, depositsData, messMealsData] = await Promise.all([
               getMemberDetails(messId, uid),
               getExpenses(messId),
-              getDeposits(messId)
+              getDeposits(messId),
+              getTotalMessMeals(messId)
           ]);
           setMemberDetails(details);
           setExpenses(expensesData);
           setDeposits(depositsData);
+          setTotalMessMeals(messMealsData);
       } catch (error) {
           console.error("Failed to fetch dashboard data:", error);
       }
@@ -95,8 +99,7 @@ export default function DashboardPage() {
   const userBalance = memberDetails?.balance ?? 0;
   const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
   const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
-  // meal rate calculation will be implemented later
-  const mealRate = 43.20; 
+  const mealRate = totalMessMeals > 0 ? totalExpenses / totalMessMeals : 0;
 
   return (
     <>

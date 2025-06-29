@@ -451,7 +451,24 @@ export const rejectExpense = async (messId: string, expenseId: string) => {
 };
 
 
-// ---- Meal Management ----
+// ---- Meal Calculation and Management ----
+
+export const getTotalMessMeals = async (messId: string): Promise<number> => {
+    if (!db) return 0;
+    const membersColRef = collection(db, 'messes', messId, 'members');
+    const membersSnap = await getFirestoreDocs(membersColRef);
+
+    if (membersSnap.empty) {
+        return 0;
+    }
+
+    let totalMeals = 0;
+    membersSnap.docs.forEach(doc => {
+        totalMeals += doc.data().meals || 0;
+    });
+
+    return totalMeals;
+};
 
 export const updateMealSettings = async (messId: string, settings: MealSettings) => {
     if (!db) throw new Error("Firestore not initialized");
@@ -475,11 +492,35 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
     }
 }
 
-export const updateMealForToday = async (messId: string, userId:string, meal: keyof MealStatus, status: boolean) => {
+export const updateMealForToday = async (messId: string, userId: string, meal: keyof MealStatus, newStatus: boolean) => {
     if (!db) throw new Error("Firestore not initialized");
+
     const todayStr = new Date().toISOString().split('T')[0];
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
     const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
-    
-    // Use set with merge to create the doc if it doesn't exist, or update the specific field if it does.
-    await setDoc(mealDocRef, { [meal]: status }, { merge: true });
-}
+
+    await runTransaction(db, async (transaction) => {
+        const mealDoc = await transaction.get(mealDocRef);
+        const memberDoc = await transaction.get(memberRef);
+
+        if (!memberDoc.exists()) {
+            throw `Member with ID ${userId} not found in mess ${messId}`;
+        }
+
+        const currentStatus = mealDoc.exists() ? mealDoc.data()[meal] as boolean : false;
+
+        if (currentStatus === newStatus) {
+            return; // No change needed
+        }
+
+        const mealCountChange = newStatus ? 1 : -1;
+        const currentTotalMeals = memberDoc.data().meals || 0;
+        const newTotalMeals = currentTotalMeals + mealCountChange;
+
+        // Update member's total meal count
+        transaction.update(memberRef, { meals: newTotalMeals });
+
+        // Update today's meal status document
+        transaction.set(mealDocRef, { [meal]: newStatus }, { merge: true });
+    });
+};
