@@ -4,6 +4,7 @@
 
 
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -72,9 +73,9 @@ export interface MealSettings {
 }
 
 export interface MealStatus {
-    breakfast: boolean;
-    lunch: boolean;
-    dinner: boolean;
+    breakfast: number;
+    lunch: number;
+    dinner: number;
 }
 
 export interface MealLedgerEntry extends MealStatus {
@@ -135,16 +136,16 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
       email: user.email,
       role: 'manager',
       balance: 0,
-      meals: 0,
+      meals: 3, // Start with 3 meals for the first day
   });
   
   // 4. Create today's meal doc for the new manager
   const today = new Date().toISOString().split('T')[0];
   const mealDocRef = doc(db, 'messes', messRef.id, 'members', user.uid, 'meals', today);
   batch.set(mealDocRef, {
-      breakfast: true,
-      lunch: true,
-      dinner: true,
+      breakfast: 1,
+      lunch: 1,
+      dinner: 1,
   });
 
   await batch.commit();
@@ -185,16 +186,16 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
         email: user.email,
         role: 'member',
         balance: 0,
-        meals: 0,
+        meals: 3,
     });
     
     // Create today's meal doc for the joining member
     const today = new Date().toISOString().split('T')[0];
     const mealDocRef = doc(db, 'messes', messId, 'members', user.uid, 'meals', today);
     batch.set(mealDocRef, {
-        breakfast: true,
-        lunch: true,
-        dinner: true,
+        breakfast: 1,
+        lunch: 1,
+        dinner: 1,
     });
 
     await batch.commit();
@@ -500,13 +501,13 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
         return mealDocSnap.data() as MealStatus;
     } else {
         // Doc doesn't exist for today, create it with defaults and return them
-        const defaultStatus: MealStatus = { breakfast: true, lunch: true, dinner: true };
+        const defaultStatus: MealStatus = { breakfast: 1, lunch: 1, dinner: 1 };
         await setDoc(mealDocRef, defaultStatus);
         return defaultStatus;
     }
 }
 
-export const updateMealForToday = async (messId: string, userId: string, meal: keyof MealStatus, newStatus: boolean) => {
+export const updateMealForToday = async (messId: string, userId: string, meal: keyof MealStatus, newCount: number) => {
     if (!db) throw new Error("Firestore not initialized");
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -521,22 +522,16 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        // Ensure meal doc exists before trying to read from it
-        let currentStatus = false;
+        let currentCount = 0;
         if (mealDoc.exists()) {
-            currentStatus = mealDoc.data()[meal] as boolean;
-        } else {
-            // If doc doesn't exist, we assume the meal was off if new status is on,
-            // and on if new status is off to calculate the delta.
-            // A better approach is to rely on ensureDailyMealDocs creating the doc first.
-            // For simplicity, we assume default is false if doc not found.
+            currentCount = mealDoc.data()[meal] || 0;
         }
 
-        if (currentStatus === newStatus) {
+        if (currentCount === newCount) {
             return; // No change needed
         }
 
-        const mealCountChange = newStatus ? 1 : -1;
+        const mealCountChange = newCount - currentCount;
         const currentTotalMeals = memberDoc.data().meals || 0;
         const newTotalMeals = currentTotalMeals + mealCountChange;
 
@@ -544,7 +539,7 @@ export const updateMealForToday = async (messId: string, userId: string, meal: k
         transaction.update(memberRef, { meals: newTotalMeals });
 
         // Update today's meal status document
-        transaction.set(mealDocRef, { [meal]: newStatus }, { merge: true });
+        transaction.set(mealDocRef, { [meal]: newCount }, { merge: true });
     });
 };
 
@@ -615,7 +610,8 @@ export const getTodaysMealStatusesForMess = async (messId: string): Promise<Reco
         if (mealDocSnap.exists()) {
             statuses[userId] = mealDocSnap.data() as MealStatus;
         } else {
-            statuses[userId] = { breakfast: true, lunch: true, dinner: true };
+            // Defaulting to 1 for each meal if document doesn't exist
+            statuses[userId] = { breakfast: 1, lunch: 1, dinner: 1 };
         }
     }));
 
@@ -642,12 +638,16 @@ export const ensureDailyMealDocs = async (messId: string) => {
     mealDocSnaps.forEach((mealDocSnap, index) => {
         if (!mealDocSnap.exists()) {
             const memberDoc = membersSnap.docs[index];
+            const memberRef = doc(db, 'messes', messId, 'members', memberDoc.id);
             const mealDocRef = doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr);
             batch.set(mealDocRef, {
-                breakfast: true,
-                lunch: true,
-                dinner: true,
+                breakfast: 1,
+                lunch: 1,
+                dinner: 1,
             });
+            // Also update the member's total meal count
+            const currentMeals = memberDoc.data().meals || 0;
+            batch.update(memberRef, { meals: currentMeals + 3 });
             writes++;
         }
     });

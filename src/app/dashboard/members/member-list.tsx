@@ -15,10 +15,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { updateMealForToday, type Member, type UserProfile, type MealStatus } from "@/services/messService";
 import { MealLedgerDialog } from './meal-ledger-dialog';
+
+type MealType = keyof MealStatus;
 
 interface MemberListProps {
   members: Member[];
@@ -45,40 +47,38 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
 
   const isManager = currentUserProfile.role === 'manager';
 
-  const handleMealOverride = async (memberId: string, meal: keyof MealStatus) => {
-    const currentStatus = mealStatuses[memberId]?.[meal];
-    if (currentStatus === undefined) return;
+  const handleMealOverride = async (memberId: string, meal: MealType, value: string) => {
+    const newCount = parseFloat(value);
+    if (isNaN(newCount) || newCount < 0) {
+      setMealStatuses(prev => ({...prev})); // Revert UI
+      return;
+    }
 
-    const newStatus = !currentStatus;
+    const originalStatus = mealStatuses[memberId];
+    if (originalStatus === undefined || originalStatus[meal] === newCount) return;
+
     const submissionKey = `${memberId}-${meal}`;
-
     setSubmitting(prev => ({ ...prev, [submissionKey]: true }));
     
     // Optimistic UI update
     setMealStatuses(prev => ({
       ...prev,
       [memberId]: {
-        ...(prev[memberId] || { breakfast: false, lunch: false, dinner: false }),
-        [meal]: newStatus
+        ...(prev[memberId] || { breakfast: 0, lunch: 0, dinner: 0 }),
+        [meal]: newCount
       }
     }));
 
     try {
-      await updateMealForToday(messId, memberId, meal, newStatus);
+      await updateMealForToday(messId, memberId, meal, newCount);
       toast({
           title: "Success",
-          description: `Meal status updated for ${members.find(m => m.id === memberId)?.name}.`
+          description: `Meal count updated for ${members.find(m => m.id === memberId)?.name}.`
       });
     } catch (error) {
       console.error("Failed to override meal status:", error);
       // Revert UI on error
-      setMealStatuses(prev => ({
-        ...prev,
-        [memberId]: {
-          ...(prev[memberId] || { breakfast: false, lunch: false, dinner: false }),
-          [meal]: !newStatus
-        }
-      }));
+      setMealStatuses(prev => ({ ...prev, [memberId]: originalStatus }));
       toast({
         title: "Update Failed",
         description: "Could not save the meal choice. Please try again.",
@@ -89,17 +89,21 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
     }
   };
 
-  const MealOverrideSwitch = ({ memberId, meal }: { memberId: string, meal: keyof MealStatus }) => {
+  const MealOverrideInput = ({ memberId, meal }: { memberId: string, meal: MealType }) => {
     const submissionKey = `${memberId}-${meal}`;
-    const isChecked = mealStatuses[memberId]?.[meal] ?? false;
+    const mealCount = mealStatuses[memberId]?.[meal] ?? 0;
 
     return (
-      <Switch
-        className="scale-75"
-        checked={isChecked}
-        onCheckedChange={() => handleMealOverride(memberId, meal)}
+      <Input
+        type="number"
+        step="0.5"
+        min="0"
+        value={mealCount}
+        onChange={(e) => setMealStatuses(prev => ({ ...prev, [memberId]: { ...prev[memberId], [meal]: e.target.valueAsNumber } }))}
+        onBlur={(e) => handleMealOverride(memberId, meal, e.target.value)}
         disabled={!isManager || submitting[submissionKey]}
         aria-readonly={!isManager}
+        className="h-7 w-12 text-center text-xs p-1"
       />
     );
   };
@@ -112,8 +116,8 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
           <CardDescription>
             Here are all the members currently in your MessX. 
             {isManager 
-              ? " As a manager, you can override their meal status for today." 
-              : " Only managers can override meal statuses."
+              ? " As a manager, you can override their meal count for today." 
+              : " Only managers can override meal counts."
             }
           </CardDescription>
         </CardHeader>
@@ -148,12 +152,12 @@ export function MemberList({ members, messId, currentUserProfile, initialMealSta
                   <TableCell className={`text-right font-bold ${member.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     ৳{member.balance.toFixed(2)}
                   </TableCell>
-                  <TableCell className="text-center">{member.meals}</TableCell>
+                  <TableCell className="text-center">{member.meals.toFixed(2)}</TableCell>
                   <TableCell>
                     <div className="flex justify-center items-center gap-2 text-xs text-muted-foreground">
-                        B<MealOverrideSwitch memberId={member.id} meal="breakfast" />
-                        L<MealOverrideSwitch memberId={member.id} meal="lunch" />
-                        D<MealOverrideSwitch memberId={member.id} meal="dinner" />
+                        B<MealOverrideInput memberId={member.id} meal="breakfast" />
+                        L<MealOverrideInput memberId={member.id} meal="lunch" />
+                        D<MealOverrideInput memberId={member.id} meal="dinner" />
                     </div>
                   </TableCell>
                   <TableCell>

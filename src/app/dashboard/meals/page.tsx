@@ -1,15 +1,15 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Info, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -27,6 +27,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 
+type MealType = keyof MealStatus;
+
 export default function MealsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -35,7 +37,7 @@ export default function MealsPage() {
   const [mealHistory, setMealHistory] = useState<MessMealHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [submitting, setSubmitting] = useState<Partial<Record<keyof MealStatus, boolean>>>({});
+  const [submitting, setSubmitting] = useState<Partial<Record<MealType, boolean>>>({});
   const router = useRouter();
   const { toast } = useToast();
 
@@ -76,19 +78,29 @@ export default function MealsPage() {
     }
   }, [user, userProfile, toast]);
 
-  const handleMealToggle = async (meal: keyof MealStatus) => {
+  const handleMealCountChange = async (meal: MealType, value: string) => {
     if (!user || !userProfile?.messId || !meals) return;
+
+    const newCount = parseFloat(value);
+    if (isNaN(newCount) || newCount < 0) {
+        // Revert invalid input without showing a toast for better UX
+        // The UI will snap back to the previous valid state.
+        setMeals(prev => ({...prev!}));
+        return;
+    }
     
     setSubmitting(prev => ({ ...prev, [meal]: true }));
-    const newStatus = !meals[meal];
+    const originalCount = meals[meal];
 
-    setMeals(prev => prev ? { ...prev, [meal]: newStatus } : null);
+    // Optimistic UI update
+    setMeals(prev => prev ? { ...prev, [meal]: newCount } : null);
 
     try {
-      await updateMealForToday(userProfile.messId, user.uid, meal, newStatus);
+      await updateMealForToday(userProfile.messId, user.uid, meal, newCount);
     } catch (error) {
       console.error("Failed to update meal status:", error);
-      setMeals(prev => prev ? { ...prev, [meal]: !newStatus } : null);
+      // Revert on error
+      setMeals(prev => prev ? { ...prev, [meal]: originalCount } : null);
       toast({
         title: "Update Failed",
         description: "Could not save your meal choice. Please try again.",
@@ -98,7 +110,7 @@ export default function MealsPage() {
       setSubmitting(prev => ({ ...prev, [meal]: false }));
     }
   };
-
+  
   const { isBreakfastLocked, isLunchLocked, isDinnerLocked, breakfastCutoffTime, lunchCutoffTime, dinnerCutoffTime } = useMemo(() => {
     if (!mealSettings) {
       return { isBreakfastLocked: true, isLunchLocked: true, isDinnerLocked: true, breakfastCutoffTime: 'N/A', lunchCutoffTime: 'N/A', dinnerCutoffTime: 'N/A' };
@@ -129,11 +141,20 @@ export default function MealsPage() {
     };
   }, [mealSettings]);
   
-  const MealIcon = ({ status }: { status: boolean }) => {
-    return status 
-      ? <CheckCircle className="h-5 w-5 text-green-500" /> 
-      : <XCircle className="h-5 w-5 text-red-500" />;
-  };
+  const MealCountControl = ({ meal, isLocked }: { meal: MealType; isLocked: boolean }) => (
+    <Input
+      id={`${meal}-count`}
+      type="number"
+      step="0.5"
+      min="0"
+      value={meals?.[meal] ?? 0}
+      onChange={(e) => setMeals(prev => prev ? { ...prev, [meal]: e.target.valueAsNumber } : null)}
+      onBlur={(e) => handleMealCountChange(meal, e.target.value)}
+      disabled={isLocked || submitting[meal]}
+      aria-readonly={isLocked}
+      className="w-20 text-center"
+    />
+  );
   
   if (loading) {
     return (
@@ -149,50 +170,32 @@ export default function MealsPage() {
         <CardHeader>
           <CardTitle className="font-headline">Today's Meals</CardTitle>
           <CardDescription>
-            Turn your meals ON or OFF for today. Toggles lock after the cut-off time.
+            Set your meal count for today (e.g., 1 for full, 0.5 for half). Toggles lock after the cut-off time.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className={`flex items-center justify-between p-3 rounded-lg ${isBreakfastLocked ? 'bg-muted/50' : ''}`}>
             <div>
-              <Label htmlFor="breakfast-mode" className="text-base font-medium">Breakfast</Label>
-              <p className="text-sm text-muted-foreground">Cut-off time: {breakfastCutoffTime}. {isBreakfastLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
+              <Label htmlFor="breakfast-count" className="text-base font-medium">Breakfast</Label>
+              <p className="text-sm text-muted-foreground">Cut-off: {breakfastCutoffTime}. {isBreakfastLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
-            <Switch
-              id="breakfast-mode"
-              checked={meals?.breakfast ?? false}
-              onCheckedChange={() => handleMealToggle('breakfast')}
-              disabled={isBreakfastLocked || submitting.breakfast}
-              aria-readonly={isBreakfastLocked}
-            />
+            <MealCountControl meal="breakfast" isLocked={isBreakfastLocked} />
           </div>
           <Separator />
           <div className={`flex items-center justify-between p-3 rounded-lg ${isLunchLocked ? 'bg-muted/50' : ''}`}>
             <div>
-                <Label htmlFor="lunch-mode" className="text-base font-medium">Lunch</Label>
-                <p className="text-sm text-muted-foreground">Cut-off time: {lunchCutoffTime}. {isLunchLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
+                <Label htmlFor="lunch-count" className="text-base font-medium">Lunch</Label>
+                <p className="text-sm text-muted-foreground">Cut-off: {lunchCutoffTime}. {isLunchLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
-            <Switch
-              id="lunch-mode"
-              checked={meals?.lunch ?? false}
-              onCheckedChange={() => handleMealToggle('lunch')}
-              disabled={isLunchLocked || submitting.lunch}
-              aria-readonly={isLunchLocked}
-            />
+            <MealCountControl meal="lunch" isLocked={isLunchLocked} />
           </div>
           <Separator />
           <div className={`flex items-center justify-between p-3 rounded-lg ${isDinnerLocked ? 'bg-muted/50' : ''}`}>
             <div>
-                <Label htmlFor="dinner-mode" className="text-base font-medium">Dinner</Label>
-                <p className="text-sm text-muted-foreground">Cut-off time: {dinnerCutoffTime}. {isDinnerLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
+                <Label htmlFor="dinner-count" className="text-base font-medium">Dinner</Label>
+                <p className="text-sm text-muted-foreground">Cut-off: {dinnerCutoffTime}. {isDinnerLocked && <span className="font-bold text-destructive">Locked.</span>}</p>
             </div>
-            <Switch
-              id="dinner-mode"
-              checked={meals?.dinner ?? false}
-              onCheckedChange={() => handleMealToggle('dinner')}
-              disabled={isDinnerLocked || submitting.dinner}
-              aria-readonly={isDinnerLocked}
-            />
+            <MealCountControl meal="dinner" isLocked={isDinnerLocked} />
           </div>
         </CardContent>
       </Card>
@@ -224,9 +227,9 @@ export default function MealsPage() {
                             <TableRow key={`${entry.date}-${entry.memberId}-${index}`}>
                                 <TableCell className="font-medium">{format(parseISO(entry.date), 'EEE, MMM d')}</TableCell>
                                 <TableCell>{entry.memberName}</TableCell>
-                                <TableCell className="text-center"><MealIcon status={entry.breakfast} /></TableCell>
-                                <TableCell className="text-center"><MealIcon status={entry.lunch} /></TableCell>
-                                <TableCell className="text-center"><MealIcon status={entry.dinner} /></TableCell>
+                                <TableCell className="text-center font-mono">{entry.breakfast}</TableCell>
+                                <TableCell className="text-center font-mono">{entry.lunch}</TableCell>
+                                <TableCell className="text-center font-mono">{entry.dinner}</TableCell>
                             </TableRow>
                         )) : (
                             <TableRow>
@@ -244,7 +247,7 @@ export default function MealsPage() {
         <Info className="h-4 w-4" />
         <AlertTitle className='font-headline'>Meal Ledger</AlertTitle>
         <AlertDescription>
-          Your personal meal toggles are timestamped in your Meal Ledger. If you miss a cut-off time, please contact your manager to override your meal status on the 'Members' page.
+          Your personal meal counts are timestamped in your Meal Ledger. If you miss a cut-off time, please contact your manager to override your meal status on the 'Members' page.
         </AlertDescription>
       </Alert>
     </div>
