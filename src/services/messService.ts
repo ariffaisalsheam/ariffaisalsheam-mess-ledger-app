@@ -68,7 +68,7 @@ export interface MealSettings {
     isBreakfastOn: boolean;
     isLunchOn: boolean;
     isDinnerOn: boolean;
-    isCutoffEnabled?: boolean;
+    isCutoffEnabled: boolean;
 }
 
 export interface MealStatus {
@@ -117,28 +117,35 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 
     let allNotifications: Notification[] = [];
     const unsubscribes: (() => void)[] = [];
-
+    
     const combineAndCallback = () => {
-        const uniqueNotifications = Array.from(new Map(allNotifications.map(n => [n.id, n])).values());
+        // Use a Map to ensure unique notifications by ID
+        const uniqueNotificationsMap = new Map<string, Notification>();
+        allNotifications.forEach(n => uniqueNotificationsMap.set(n.id, n));
+        const uniqueNotifications = Array.from(uniqueNotificationsMap.values());
+        
+        // Sort after combining
         uniqueNotifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
         callback(uniqueNotifications.slice(0, 20));
     };
     
-    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
+    // Listener for personal notifications
+    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId), orderBy('timestamp', 'desc'), limit(20));
     const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
         const personalNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
         allNotifications = [...allNotifications.filter(n => n.userId !== userId), ...personalNotifications];
         combineAndCallback();
-    });
+    }, (error) => console.error("Error on personal notifications snapshot:", error));
     unsubscribes.push(personalUnsubscribe);
 
+    // Listener for manager notifications if applicable
     if (role === 'manager') {
-        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'));
+        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'), orderBy('timestamp', 'desc'), limit(20));
         const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
             const managerNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
             allNotifications = [...allNotifications.filter(n => n.userId !== 'manager'), ...managerNotifications];
             combineAndCallback();
-        });
+        }, (error) => console.error("Error on manager notifications snapshot:", error));
         unsubscribes.push(managerUnsubscribe);
     }
     
@@ -429,6 +436,84 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
     });
 };
 
+// ---- Managerial Transaction Edits ----
+
+export const getDepositsForUser = async (messId: string, userId: string): Promise<Deposit[]> => {
+    if (!db) return [];
+    const depositsCol = collection(db, 'messes', messId, 'deposits');
+    const q = query(depositsCol, where("userId", "==", userId), orderBy("date", "desc"));
+    const snapshot = await getFirestoreDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Deposit;
+    });
+};
+
+export const getExpensesForUser = async (messId: string, userId: string): Promise<Expense[]> => {
+    if (!db) return [];
+    const expensesCol = collection(db, 'messes', messId, 'expenses');
+    const q = query(expensesCol, where("userId", "==", userId), orderBy("date", "desc"));
+    const snapshot = await getFirestoreDocs(q);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp).toDate().toISOString();
+        return { id: doc.id, ...data, date } as Expense;
+    });
+};
+
+export const updateDeposit = async (messId: string, depositId: string, userId: string, oldAmount: number, newAmount: number) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const depositRef = doc(db, 'messes', messId, 'deposits', depositId);
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
+
+    await runTransaction(db, async (transaction) => {
+        const memberDoc = await transaction.get(memberRef);
+        if (!memberDoc.exists()) {
+            throw new Error("Member not found.");
+        }
+
+        const balanceChange = newAmount - oldAmount;
+        const newBalance = (memberDoc.data().balance || 0) + balanceChange;
+
+        transaction.update(memberRef, { balance: newBalance });
+        transaction.update(depositRef, { amount: newAmount });
+    });
+};
+
+export const deleteDeposit = async (messId: string, depositId: string, userId: string, amount: number) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const depositRef = doc(db, 'messes', messId, 'deposits', depositId);
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
+
+    await runTransaction(db, async (transaction) => {
+        const memberDoc = await transaction.get(memberRef);
+        if (!memberDoc.exists()) {
+            throw new Error("Member not found.");
+        }
+
+        const newBalance = (memberDoc.data().balance || 0) - amount;
+
+        transaction.update(memberRef, { balance: newBalance });
+        transaction.delete(depositRef);
+    });
+};
+
+export const updateExpense = async (messId: string, expenseId: string, amount: number, description: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
+    await updateDoc(expenseRef, { amount, description });
+};
+
+export const deleteExpense = async (messId: string, expenseId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
+    await deleteDoc(expenseRef);
+};
+
+
 // ---- Pending Transactions ----
 
 export const addDeposit = async (messId: string, userId: string, amount: number) => {
@@ -677,7 +762,7 @@ export const getTodaysMealStatus = async (messId: string, userId: string): Promi
     }
 }
 
-export const updateMealForToday = async (messId: string, userId: string, meal: keyof MealStatus, newCount: number) => {
+export const updateMealForToday = async (messId: string, userId: string, meal: keyof Omit<MealStatus, 'isSetByUser'>, newCount: number) => {
     if (!db) throw new Error("Firestore not initialized");
 
     const todayStr = new Date().toISOString().split('T')[0];
@@ -750,11 +835,8 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        let oldMealTotalForDate = 0;
-        if (mealDoc.exists()) {
-            const oldMealsData = mealDoc.data() as MealStatus;
-            oldMealTotalForDate = (oldMealsData.breakfast || 0) + (oldMealsData.lunch || 0) + (oldMealsData.dinner || 0);
-        }
+        const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0 };
+        const oldMealTotalForDate = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0);
 
         const newMealTotalForDate = (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0);
         
@@ -779,26 +861,23 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
 
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - (days - 1));
-    const startDateString = startDate.toISOString().split('T')[0];
+    // To avoid complex indexes, we fetch recent documents and filter/sort client-side.
+    // This is less efficient for very large datasets but avoids index management for now.
+    const querySnapshot = await getFirestoreDocs(mealsColRef);
     
-    // The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/mess-x/firestore/indexes?create_composite=CkRwcm9qZWN0cy9tZXNzLXgvZGF0YWJhc2VzLyhkZWZhdWx0KS9jb2xsZWN0aW9uR3JvdXBzL21lYWxzL2luZGV4ZXMvXxABGgwKCF9fbmFtZV9fEAI
-    const q = query(mealsColRef, where(documentId(), '>=', startDateString));
-    const querySnapshot = await getFirestoreDocs(q);
-
-    const ledger: MealLedgerEntry[] = [];
+    const allEntries: MealLedgerEntry[] = [];
     querySnapshot.forEach(doc => {
-        ledger.push({
+        allEntries.push({
             date: doc.id,
             ...(doc.data() as MealStatus)
         });
     });
 
-    // Sort in code to avoid composite index
-    ledger.sort((a, b) => b.date.localeCompare(a.date));
+    // Sort by date descending
+    allEntries.sort((a, b) => b.date.localeCompare(a.date));
 
-    return ledger.slice(0, days);
+    // Return the last 'days' entries
+    return allEntries.slice(0, days);
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {

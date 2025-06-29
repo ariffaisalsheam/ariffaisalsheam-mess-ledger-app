@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { UserCog, Loader2 } from "lucide-react";
 import { MemberList } from './member-list';
-import { getMembersOfMess, getUserProfile, getTodaysMealStatusesForMess, getMessById } from '@/services/messService';
-import type { Member, UserProfile, MealStatus, MealSettings } from '@/services/messService';
+import { getMembersOfMess, getUserProfile } from '@/services/messService';
+import type { Member, UserProfile } from '@/services/messService';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -14,8 +14,6 @@ import { useRouter } from 'next/navigation';
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [mealStatuses, setMealStatuses] = useState<Record<string, MealStatus>>({});
-  const [mealSettings, setMealSettings] = useState<MealSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -44,19 +42,16 @@ export default function MembersPage() {
     getUserProfile(authUser.uid).then(profile => {
       setUserProfile(profile);
       if (profile && profile.messId) {
-        Promise.all([
-          getMembersOfMess(profile.messId),
-          getTodaysMealStatusesForMess(profile.messId),
-          getMessById(profile.messId)
-        ]).then(([fetchedMembers, fetchedStatuses, messData]) => {
-          setMembers(fetchedMembers);
-          setMealStatuses(fetchedStatuses);
-          setMealSettings(messData?.mealSettings || null);
-          setLoading(false);
-        }).catch(err => {
-            console.error("Failed to load members page data", err);
+        getMembersOfMess(profile.messId)
+          .then((fetchedMembers) => {
+            setMembers(fetchedMembers);
+          })
+          .catch(err => {
+              console.error("Failed to load members page data", err);
+          })
+          .finally(() => {
             setLoading(false);
-        });
+          });
       } else {
         // Not in a mess, or no profile
         router.push('/welcome');
@@ -89,8 +84,6 @@ export default function MembersPage() {
           members={members} 
           messId={userProfile.messId}
           currentUserProfile={userProfile}
-          initialMealStatuses={mealStatuses}
-          mealSettings={mealSettings}
           onUpdate={fetchData}
         />
       )}
