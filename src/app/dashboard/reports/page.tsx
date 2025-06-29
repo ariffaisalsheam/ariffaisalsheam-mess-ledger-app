@@ -82,8 +82,10 @@ export default function ReportsPage() {
                 scale: 2,
                 useCORS: true,
                 backgroundColor: '#ffffff',
+                height: reportElement.scrollHeight,
+                windowHeight: reportElement.scrollHeight,
             });
-            const imgData = canvas.toDataURL('image/jpeg', 0.8); // Use JPEG for smaller file size
+            const imgData = canvas.toDataURL('image/jpeg', 0.9);
             
             const pdf = new jsPDF('p', 'mm', 'a4');
             const PADDING = 15;
