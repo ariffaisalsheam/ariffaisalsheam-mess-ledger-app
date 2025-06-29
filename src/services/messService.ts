@@ -16,7 +16,8 @@ import {
   Timestamp,
   runTransaction,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  onSnapshot
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -236,6 +237,60 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
 
     return members;
 }
+
+export const onMemberDetailsChange = (messId: string, userId: string, callback: (member: Member | null) => void) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    
+    const unsubscribe = onSnapshot(memberRef, async (memberSnap) => {
+        if (memberSnap.exists()) {
+            const data = memberSnap.data();
+            const userProfile = await getUserProfile(userId);
+            const member: Member = {
+                id: userId,
+                name: data.name || "Unnamed Member",
+                role: data.role,
+                balance: data.balance ?? 0,
+                meals: data.meals ?? 0,
+                avatar: userProfile?.photoURL || 'https://placehold.co/40x40.png',
+            };
+            callback(member);
+        } else {
+            callback(null);
+        }
+    });
+
+    return unsubscribe;
+};
+
+export const onPendingItemsChange = (messId: string, callback: (count: number) => void) => {
+    if (!db) throw new Error("Firestore not initialized");
+
+    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+
+    let depositCount = 0;
+    let expenseCount = 0;
+
+    const updateCount = () => {
+        callback(depositCount + expenseCount);
+    };
+
+    const unsubDeposits = onSnapshot(pendingDepositsRef, (snapshot) => {
+        depositCount = snapshot.size;
+        updateCount();
+    });
+
+    const unsubExpenses = onSnapshot(pendingExpensesRef, (snapshot) => {
+        expenseCount = snapshot.size;
+        updateCount();
+    });
+
+    return () => {
+        unsubDeposits();
+        unsubExpenses();
+    };
+};
 
 export const getMemberDetails = async (messId: string, userId: string): Promise<Member | null> => {
     if (!db) throw new Error("Firestore not initialized");

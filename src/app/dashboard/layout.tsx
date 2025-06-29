@@ -36,9 +36,8 @@ import { auth } from "@/lib/firebase";
 import { 
     getUserProfile, 
     getMessById, 
-    getMemberDetails, 
-    getPendingDeposits,
-    getPendingExpenses,
+    onMemberDetailsChange,
+    onPendingItemsChange,
     type UserProfile, 
     type Member 
 } from "@/services/messService";
@@ -75,41 +74,47 @@ export default function DashboardLayout({
   }, [router]);
 
   useEffect(() => {
-    if (authUser) {
-      getUserProfile(authUser.uid).then(profile => {
-        if (profile) {
-          setUserProfile(profile);
-          if (profile.messId) {
-            getMessById(profile.messId).then(mess => {
-              if (mess) {
-                setMessName(mess.name as string);
-              } else {
-                setMessName("No Mess");
-              }
-            });
-            getMemberDetails(profile.messId, authUser.uid).then(details => {
-                setMemberDetails(details);
-            });
-            // Fetch pending counts for manager
-            if (profile.role === 'manager') {
-                Promise.all([
-                    getPendingDeposits(profile.messId),
-                    getPendingExpenses(profile.messId)
-                ]).then(([deposits, expenses]) => {
-                    setPendingReviews(deposits.length + expenses.length);
-                });
+    if (!authUser) return;
+
+    let memberDetailsUnsubscribe: (() => void) | undefined;
+    let pendingItemsUnsubscribe: (() => void) | undefined;
+
+    const setupListeners = async () => {
+        try {
+            const profile = await getUserProfile(authUser.uid);
+            if (profile) {
+                setUserProfile(profile);
+                if (profile.messId) {
+                    const mess = await getMessById(profile.messId);
+                    setMessName(mess?.name as string || "No Mess");
+
+                    memberDetailsUnsubscribe = onMemberDetailsChange(profile.messId, authUser.uid, setMemberDetails);
+
+                    if (profile.role === 'manager') {
+                        pendingItemsUnsubscribe = onPendingItemsChange(profile.messId, setPendingReviews);
+                    }
+                    setLoading(false);
+
+                } else {
+                    router.push('/welcome');
+                }
+            } else {
+                console.error("User profile not found in Firestore.");
+                auth?.signOut();
+                router.push('/login');
             }
+        } catch (error) {
+            console.error("Error setting up dashboard listeners:", error);
             setLoading(false);
-          } else {
-            router.push('/welcome');
-          }
-        } else {
-          console.error("User profile not found in Firestore.");
-          auth?.signOut();
-          router.push('/login');
         }
-      });
-    }
+    };
+    
+    setupListeners();
+
+    return () => {
+      memberDetailsUnsubscribe?.();
+      pendingItemsUnsubscribe?.();
+    };
   }, [authUser, router]);
   
   useEffect(() => {
