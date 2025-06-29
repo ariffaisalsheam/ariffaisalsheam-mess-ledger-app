@@ -1,4 +1,5 @@
 
+
 import { db } from '@/lib/firebase';
 import {
   doc,
@@ -12,7 +13,10 @@ import {
   query,
   where,
   limit,
-  Timestamp
+  Timestamp,
+  runTransaction,
+  deleteDoc,
+  writeBatch
 } from 'firebase/firestore';
 import type { User as FirebaseUser } from 'firebase/auth';
 
@@ -73,27 +77,28 @@ export const upsertUser = async (user: FirebaseUser) => {
 export const createMess = async (messName: string, user: FirebaseUser) => {
   if (!db) throw new Error("Firestore not initialized");
 
-  // 1. Generate a simple unique invite code
   const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const batch = writeBatch(db);
 
-  // 2. Create the mess document
-  const messRef = await addDoc(collection(db, 'messes'), {
+  // 1. Create the mess document
+  const messRef = doc(collection(db, 'messes'));
+  batch.set(messRef, {
     name: messName,
     managerId: user.uid,
     createdAt: serverTimestamp(),
     inviteCode: inviteCode,
   });
 
-  // 3. Update the user's profile with the new messId and role
+  // 2. Update the user's profile with the new messId and role
   const userRef = doc(db, 'users', user.uid);
-  await updateDoc(userRef, {
+  batch.update(userRef, {
     messId: messRef.id,
     role: 'manager',
   });
 
-  // 4. Add user as the first member (manager) of the mess
+  // 3. Add user as the first member (manager) of the mess
   const memberRef = doc(db, 'messes', messRef.id, 'members', user.uid);
-  await setDoc(memberRef, {
+  batch.set(memberRef, {
       name: user.displayName,
       email: user.email,
       role: 'manager',
@@ -101,6 +106,7 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
       meals: 0,
   });
 
+  await batch.commit();
   return messRef.id;
 };
 
@@ -108,7 +114,6 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
 export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUser) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    // 1. Find the mess with the given invite code
     const messesRef = collection(db, 'messes');
     const q = query(messesRef, where("inviteCode", "==", inviteCode.toUpperCase()), limit(1));
     const querySnapshot = await getFirestoreDocs(q);
@@ -120,22 +125,21 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
     const messDoc = querySnapshot.docs[0];
     const messId = messDoc.id;
 
-    // 2. Check if user is already in a mess
     const userProfile = await getUserProfile(user.uid);
     if (userProfile?.messId) {
         throw new Error("You are already a member of a mess.");
     }
     
-    // 3. Update the user's profile with the new messId and role
+    const batch = writeBatch(db);
+
     const userRef = doc(db, 'users', user.uid);
-    await updateDoc(userRef, {
+    batch.update(userRef, {
         messId: messId,
         role: 'member',
     });
 
-    // 4. Add user as a new member of the mess
     const memberRef = doc(db, 'messes', messId, 'members', user.uid);
-    await setDoc(memberRef, {
+    batch.set(memberRef, {
         name: user.displayName,
         email: user.email,
         role: 'member',
@@ -143,10 +147,10 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
         meals: 0,
     });
 
+    await batch.commit();
     return messId;
 }
 
-// Get user profile from Firestore
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
   if (!db) throw new Error("Firestore not initialized");
   const userRef = doc(db, 'users', uid);
@@ -157,7 +161,6 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
   return null;
 };
 
-// Get Mess data
 export const getMessById = async (messId: string) => {
     if (!db) throw new Error("Firestore not initialized");
     const messRef = doc(db, 'messes', messId);
@@ -168,7 +171,6 @@ export const getMessById = async (messId: string) => {
     return null;
 }
 
-// Get all members of a mess
 export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
     if (!db) throw new Error("Firestore not initialized");
 
@@ -195,7 +197,6 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
     return members;
 }
 
-// Get a single member's details
 export const getMemberDetails = async (messId: string, userId: string): Promise<Member | null> => {
     if (!db) throw new Error("Firestore not initialized");
     const memberRef = doc(db, 'messes', messId, 'members', userId);
@@ -218,7 +219,6 @@ export const getMemberDetails = async (messId: string, userId: string): Promise<
     };
 };
 
-// Get all expenses for a mess
 export const getExpenses = async (messId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
@@ -230,7 +230,6 @@ export const getExpenses = async (messId: string): Promise<Expense[]> => {
     });
 };
 
-// Get all deposits for a mess
 export const getDeposits = async (messId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'deposits');
@@ -240,4 +239,118 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Deposit;
     });
+};
+
+// ---- Pending Transactions ----
+
+export const addDeposit = async (messId: string, userId: string, amount: number) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(userId);
+    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    await addDoc(pendingDepositsRef, {
+        amount,
+        userId,
+        memberName: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+};
+
+export const addExpense = async (messId: string, userId: string, amount: number, description: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(userId);
+    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    await addDoc(pendingExpensesRef, {
+        amount,
+        description,
+        userId,
+        addedBy: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+};
+
+export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => {
+    if (!db) return [];
+    const depositsCol = collection(db, 'messes', messId, 'pendingDeposits');
+    const snapshot = await getFirestoreDocs(depositsCol);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
+        return { id: doc.id, ...data, date } as Deposit;
+    });
+};
+
+export const getPendingExpenses = async (messId: string): Promise<Expense[]> => {
+    if (!db) return [];
+    const expensesCol = collection(db, 'messes', messId, 'pendingExpenses');
+    const snapshot = await getFirestoreDocs(expensesCol);
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const date = (data.date as Timestamp)?.toDate().toISOString() || new Date().toISOString();
+        return { id: doc.id, ...data, date } as Expense;
+    });
+};
+
+export const approveDeposit = async (messId: string, depositId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', depositId);
+
+    await runTransaction(db, async (transaction) => {
+        const pendingDoc = await transaction.get(pendingDepositRef);
+        if (!pendingDoc.exists()) {
+            throw "Pending deposit document does not exist!";
+        }
+
+        const pendingData = pendingDoc.data();
+        const memberRef = doc(db, 'messes', messId, 'members', pendingData.userId);
+        
+        const memberDoc = await transaction.get(memberRef);
+        if (!memberDoc.exists()) {
+            throw `Member with ID ${pendingData.userId} not found in mess ${messId}`;
+        }
+
+        const newBalance = (memberDoc.data().balance || 0) + pendingData.amount;
+
+        const newDepositRef = doc(collection(db, 'messes', messId, 'deposits'));
+        transaction.set(newDepositRef, {
+            ...pendingData,
+            status: 'approved',
+            approvedAt: serverTimestamp(),
+        });
+
+        transaction.update(memberRef, { balance: newBalance });
+        transaction.delete(pendingDepositRef);
+    });
+};
+
+export const rejectDeposit = async (messId: string, depositId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    await deleteDoc(doc(db, 'messes', messId, 'pendingDeposits', depositId));
+};
+
+export const approveExpense = async (messId: string, expenseId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', expenseId);
+    
+    await runTransaction(db, async (transaction) => {
+        const pendingDoc = await transaction.get(pendingExpenseRef);
+        if (!pendingDoc.exists()) {
+            throw "Pending expense document does not exist!";
+        }
+
+        const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
+        transaction.set(newExpenseRef, {
+            ...pendingDoc.data(),
+            status: 'approved',
+            approvedAt: serverTimestamp(),
+        });
+        
+        transaction.delete(pendingExpenseRef);
+    });
+};
+
+export const rejectExpense = async (messId: string, expenseId: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    await deleteDoc(doc(db, 'messes', messId, 'pendingExpenses', expenseId));
 };

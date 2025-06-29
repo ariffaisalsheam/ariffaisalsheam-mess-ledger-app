@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -32,7 +33,15 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { getUserProfile, getMessById, getMemberDetails, type UserProfile, type Member } from "@/services/messService";
+import { 
+    getUserProfile, 
+    getMessById, 
+    getMemberDetails, 
+    getPendingDeposits,
+    getPendingExpenses,
+    type UserProfile, 
+    type Member 
+} from "@/services/messService";
 
 export default function DashboardLayout({
   children,
@@ -45,7 +54,7 @@ export default function DashboardLayout({
   const [messName, setMessName] = useState("Loading...");
   const [pageTitle, setPageTitle] = useState("Dashboard");
   const [loading, setLoading] = useState(true);
-  const pendingReviews = 0; // This remains mock data for now
+  const [pendingReviews, setPendingReviews] = useState(0);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -80,8 +89,17 @@ export default function DashboardLayout({
             });
             getMemberDetails(profile.messId, authUser.uid).then(details => {
                 setMemberDetails(details);
-                setLoading(false);
-            })
+            });
+            // Fetch pending counts for manager
+            if (profile.role === 'manager') {
+                Promise.all([
+                    getPendingDeposits(profile.messId),
+                    getPendingExpenses(profile.messId)
+                ]).then(([deposits, expenses]) => {
+                    setPendingReviews(deposits.length + expenses.length);
+                });
+            }
+            setLoading(false);
           } else {
             router.push('/welcome');
           }
