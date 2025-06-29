@@ -23,7 +23,7 @@ export default function JoinMessPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Join a Mess</CardTitle>
+            <CardTitle className="text-2xl font-headline">Join a MessX</CardTitle>
             <CardDescription>Enter your invite code to join an existing mess.</CardDescription>
         </CardHeader>
         <CardContent>

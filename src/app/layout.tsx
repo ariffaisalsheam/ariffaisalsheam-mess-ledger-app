@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Xapps',
+  title: 'MessX by Xapps',
   description: 'Your all-in-one solution.',
 };
 

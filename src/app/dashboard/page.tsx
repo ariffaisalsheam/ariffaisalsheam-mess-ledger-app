@@ -32,7 +32,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">+৳500.00</div>
-            <p className="text-xs text-muted-foreground">Your current standing in the mess</p>
+            <p className="text-xs text-muted-foreground">Your current standing in the MessX</p>
           </CardContent>
         </Card>
         <Card>
@@ -80,7 +80,7 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle className="font-headline">Mess Expenses</CardTitle>
+            <CardTitle className="font-headline">MessX Expenses</CardTitle>
             <CardDescription>All approved expenses added by members.</CardDescription>
           </CardHeader>
           <CardContent className="flex-grow">

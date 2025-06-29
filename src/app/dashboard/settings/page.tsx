@@ -45,21 +45,21 @@ export default function SettingsPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold font-headline">Settings</h1>
-        <p className="text-muted-foreground">Manage your mess settings and member roles.</p>
+        <p className="text-muted-foreground">Manage your MessX settings and member roles.</p>
       </div>
       
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline">Mess Information</CardTitle>
+          <CardTitle className="font-headline">MessX Information</CardTitle>
           <CardDescription>Update your mess's general details and invite codes.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="mess-name">Mess Name</Label>
-            <Input id="mess-name" defaultValue="Bachelors Paradise" />
+            <Label htmlFor="mess-name">MessX Name</Label>
+            <Input id="mess-name" defaultValue="MessX Paradise" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="invite-code">Mess Invite Code</Label>
+            <Label htmlFor="invite-code">MessX Invite Code</Label>
             <div className="flex gap-2">
                 <Input id="invite-code" readOnly value="XYZ-123-ABC" />
                 <Button variant="outline" size="icon" onClick={handleCopy}><Copy className="h-4 w-4" /></Button>
@@ -126,7 +126,7 @@ export default function SettingsPage() {
                                     <AlertDialogHeader>
                                       <AlertDialogTitle className="font-headline flex items-center"><ShieldAlert className="mr-2 text-yellow-500" />Transfer Manager Role?</AlertDialogTitle>
                                       <AlertDialogDescription>
-                                        You are about to make <strong>{member.name}</strong> the new manager of Bachelors Paradise. You will immediately lose all manager privileges and become a regular member. This action cannot be undone.
+                                        You are about to make <strong>{member.name}</strong> the new manager of MessX Paradise. You will immediately lose all manager privileges and become a regular member. This action cannot be undone.
                                         <br/><br/>
                                         To confirm, please type <strong>TRANSFER</strong> in the box below.
                                       </AlertDialogDescription>
@@ -161,10 +161,10 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Delete this Mess</p>
-                <p className="text-sm text-muted-foreground">Once you delete a mess, there is no going back. Please be certain.</p>
+                <p className="font-medium">Delete this MessX</p>
+                <p className="text-sm text-muted-foreground">Once you delete a MessX, there is no going back. Please be certain.</p>
               </div>
-              <Button variant="destructive">Delete Mess</Button>
+              <Button variant="destructive">Delete MessX</Button>
           </CardContent>
       </Card>
     </div>

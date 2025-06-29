@@ -23,7 +23,7 @@ export default function CreateMessPage() {
             <div className="mb-4 flex justify-center">
                 <Logo />
             </div>
-            <CardTitle className="text-2xl font-headline">Create Your Mess</CardTitle>
+            <CardTitle className="text-2xl font-headline">Create Your MessX</CardTitle>
             <CardDescription>Give your new mess a name to get started.</CardDescription>
         </CardHeader>
         <CardContent>

@@ -28,8 +28,8 @@ export default function MembersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
             <div>
-                <h1 className="text-3xl font-bold font-headline">Mess Members</h1>
-                <p className="text-muted-foreground">View and manage all members of your mess.</p>
+                <h1 className="text-3xl font-bold font-headline">MessX Members</h1>
+                <p className="text-muted-foreground">View and manage all members of your MessX.</p>
             </div>
             <Button>
                 <UserCog className="mr-2 h-4 w-4" /> Invite New Member
@@ -40,7 +40,7 @@ export default function MembersPage() {
         <CardHeader>
           <CardTitle className="font-headline">Member List</CardTitle>
           <CardDescription>
-            Here are all the members currently in your mess. As a manager, you can override their meal status.
+            Here are all the members currently in your MessX. As a manager, you can override their meal status.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -96,7 +96,7 @@ export default function MembersPage() {
                         <DropdownMenuItem>View Meal Ledger</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-500">
-                          Remove from Mess
+                          Remove from MessX
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -20,7 +20,7 @@ export default function ReviewPage() {
       <div className="flex items-center justify-between">
             <div>
                 <h1 className="text-3xl font-bold font-headline">Review Queue</h1>
-                <p className="text-muted-foreground">Approve or reject submissions from mess members.</p>
+                <p className="text-muted-foreground">Approve or reject submissions from MessX members.</p>
             </div>
       </div>
 
