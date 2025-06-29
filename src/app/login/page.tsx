@@ -5,21 +5,26 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { upsertUser, getUserProfile } from "@/services/messService";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isForgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleSuccessfulLogin = async (uid: string) => {
     const profile = await getUserProfile(uid);
@@ -96,74 +101,165 @@ export default function LoginPage() {
     }
   }
 
+  const handlePasswordReset = async () => {
+    if (!auth) {
+        toast({ title: "Configuration Error", description: "Firebase is not configured correctly.", variant: "destructive" });
+        return;
+    }
+    if (!resetEmail) {
+        toast({ title: "Email required", description: "Please enter your email address.", variant: "destructive" });
+        return;
+    }
+    setIsResetting(true);
+    try {
+        await sendPasswordResetEmail(auth, resetEmail);
+        toast({
+            title: "Check your email",
+            description: `A password reset link has been sent to ${resetEmail}.`
+        });
+        setForgotDialogOpen(false);
+        setResetEmail("");
+    } catch (error: any) {
+        let description = "Failed to send password reset email. Please try again.";
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            description = "No user found with this email address.";
+        }
+        toast({ title: "Error", description, variant: "destructive" });
+    } finally {
+        setIsResetting(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
-      <Card className="mx-auto w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mb-4 flex justify-center">
-            <Logo />
-          </div>
-          <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
-          <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 172.9 65.6l-58.3 52.7C338.6 97.2 297.9 80 248 80c-82.8 0-150.5 67.7-150.5 150.5S165.2 406.5 248 406.5c94.2 0 135.3-77.6 140.8-112.4H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
-              Continue with Google
-            </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  Or continue with
-                </span>
-              </div>
+    <>
+      <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
+        <Card className="mx-auto w-full max-w-sm">
+          <CardHeader className="text-center">
+            <div className="mb-4 flex justify-center">
+              <Logo />
             </div>
-            <form onSubmit={handleEmailSignIn}>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    disabled={loading}
-                  />
+            <CardTitle className="text-2xl font-headline">Mess Ledger</CardTitle>
+            <CardDescription>Transparent Tracking, Effortless Settlement</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4">
+              <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 172.9 65.6l-58.3 52.7C338.6 97.2 297.9 80 248 80c-82.8 0-150.5 67.7-150.5 150.5S165.2 406.5 248 406.5c94.2 0 135.3-77.6 140.8-112.4H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path></svg>
+                Continue with Google
+              </Button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-                <div className="grid gap-2 mt-4">
-                  <div className="flex items-center">
-                    <Label htmlFor="password">Password</Label>
-                    <Link
-                      href="#"
-                      className="ml-auto inline-block text-sm underline"
-                    >
-                      Forgot your password?
-                    </Link>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+              <form onSubmit={handleEmailSignIn}>
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="m@example.com"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={loading}
+                    />
                   </div>
-                  <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
-                </div>
-                <Button type="submit" className="w-full mt-4" disabled={loading}>
-                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Login
-                </Button>
-            </form>
+                  <div className="grid gap-2 mt-4">
+                    <div className="flex items-center">
+                      <Label htmlFor="password">Password</Label>
+                      <Button
+                        variant="link"
+                        type="button"
+                        onClick={() => setForgotDialogOpen(true)}
+                        className="ml-auto inline-block h-auto p-0 text-sm underline"
+                      >
+                        Forgot your password?
+                      </Button>
+                    </div>
+                    <div className="relative">
+                        <Input 
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            disabled={loading}
+                            className="pr-10"
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            disabled={loading}
+                        >
+                            {showPassword ? (
+                                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                            ) : (
+                                <Eye className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            <span className="sr-only">
+                                {showPassword ? "Hide password" : "Show password"}
+                            </span>
+                        </Button>
+                    </div>
+                  </div>
+                  <Button type="submit" className="w-full mt-4" disabled={loading}>
+                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Login
+                  </Button>
+              </form>
+            </div>
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              Don't have an account?
+            </div>
+            <Link href="/signup" passHref>
+              <Button variant="outline" className="w-full mt-2">
+                Get started
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={isForgotDialogOpen} onOpenChange={setForgotDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="reset-email">Email</Label>
+              <Input
+                id="reset-email"
+                type="email"
+                placeholder="m@example.com"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                autoFocus
+              />
+            </div>
           </div>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            Don't have an account?
-          </div>
-          <Link href="/signup" passHref>
-            <Button variant="outline" className="w-full mt-2">
-              Get started
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handlePasswordReset} disabled={isResetting}>
+              {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Send Reset Link
             </Button>
-          </Link>
-        </CardContent>
-      </Card>
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

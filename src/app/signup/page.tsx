@@ -12,7 +12,7 @@ import { auth } from "@/lib/firebase";
 import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { upsertUser } from "@/services/messService";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignUp = async () => {
@@ -138,7 +139,34 @@ export default function SignupPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} />
+                   <div className="relative">
+                        <Input 
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            disabled={loading}
+                            className="pr-10"
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword((prev) => !prev)}
+                            disabled={loading}
+                        >
+                            {showPassword ? (
+                                <EyeOff className="h-4 w-4" aria-hidden="true" />
+                            ) : (
+                                <Eye className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            <span className="sr-only">
+                                {showPassword ? "Hide password" : "Show password"}
+                            </span>
+                        </Button>
+                    </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                     {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
