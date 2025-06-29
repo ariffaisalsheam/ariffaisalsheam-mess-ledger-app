@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +19,6 @@ import {
   Home,
   LogOut,
   Menu,
-  Package2,
   Settings,
   Users,
   Utensils,
@@ -35,12 +35,39 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Mock user data for UI building
   const user = { role: "manager", name: "Rahim Doe", email: "rahim@example.com" };
   const pendingReviews = 2;
 
+  const pathname = usePathname();
+  const [messName, setMessName] = useState("MessX");
+  const [pageTitle, setPageTitle] = useState("Dashboard");
+
+  useEffect(() => {
+    const name = localStorage.getItem("messName");
+    if (name) {
+      setMessName(name);
+    }
+  }, []);
+
+  useEffect(() => {
+    let title: string;
+    if (pathname === '/dashboard') {
+      title = messName;
+    } else {
+        const page = pathname.split('/').pop();
+        switch(page) {
+            case 'meals': title = 'Manage Your Meals'; break;
+            case 'members': title = 'MessX Members'; break;
+            case 'settings': title = 'Settings'; break;
+            case 'review': title = 'Review Queue'; break;
+            default: title = 'Dashboard';
+        }
+    }
+    setPageTitle(title);
+  }, [pathname, messName]);
+
+
   const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => {
-    const pathname = usePathname();
     const isActive = pathname === href;
     return (
       <Link
@@ -73,7 +100,7 @@ export default function DashboardLayout({
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
               <Logo />
-              <span className="font-headline text-lg">MessX</span>
+              <span className="font-headline text-lg">{messName}</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -122,7 +149,7 @@ export default function DashboardLayout({
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
                 >
                   <Logo/>
-                  <span className="sr-only">MessX</span>
+                  <span className="sr-only">{messName}</span>
                 </Link>
                 {navItems.map(item => <NavLink key={item.href} href={item.href}>{item.icon}{item.label}</NavLink>)}
                  {user.role === 'manager' && managerNavItems.map(item => (
@@ -135,7 +162,7 @@ export default function DashboardLayout({
             </SheetContent>
           </Sheet>
           <div className="w-full flex-1">
-             <h1 className="font-headline text-xl">Dashboard</h1>
+             <h1 className="font-headline text-xl">{pageTitle}</h1>
           </div>
           <Button variant="outline" size="icon" className="h-8 w-8">
             <Bell className="h-4 w-4" />

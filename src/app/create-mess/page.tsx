@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +11,17 @@ import { Logo } from "@/components/logo";
 import { ArrowLeft } from "lucide-react";
 
 export default function CreateMessPage() {
+  const [messName, setMessName] = useState("");
+  const router = useRouter();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (messName.trim()) {
+      localStorage.setItem("messName", messName.trim());
+      router.push("/dashboard");
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-4">
       <div className="absolute left-4 top-4 md:left-8 md:top-8">
@@ -27,20 +40,20 @@ export default function CreateMessPage() {
             <CardDescription>Give your new mess a name to get started.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4">
+          <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
               <Label htmlFor="mess-name">Mess Name</Label>
               <Input
                 id="mess-name"
                 placeholder="e.g., 'Bachelors Paradise'"
                 required
+                value={messName}
+                onChange={(e) => setMessName(e.target.value)}
               />
             </div>
-            <Link href="/dashboard" passHref>
-              <Button type="submit" className="w-full">
-                Create and Go to Dashboard
-              </Button>
-            </Link>
+            <Button type="submit" className="w-full" disabled={!messName.trim()}>
+              Create and Go to Dashboard
+            </Button>
           </form>
         </CardContent>
       </Card>

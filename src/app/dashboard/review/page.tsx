@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 const pendingExpenses = [
   { id: 1, submitter: "Karim Khan", amount: 350, description: "Cleaning Supplies", date: "2023-10-05" },
@@ -17,13 +17,6 @@ const pendingDeposits = [
 export default function ReviewPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-            <div>
-                <h1 className="text-3xl font-bold font-headline">Review Queue</h1>
-                <p className="text-muted-foreground">Approve or reject submissions from MessX members.</p>
-            </div>
-      </div>
-
       <Tabs defaultValue="expenses" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="expenses">Expenses ({pendingExpenses.length})</TabsTrigger>

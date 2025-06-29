@@ -35,12 +35,6 @@ export default function MealsPage() {
 
   return (
     <div className="space-y-6">
-       <div className="flex items-center justify-between">
-            <div>
-                <h1 className="text-3xl font-bold font-headline">Manage Your Meals</h1>
-                <p className="text-muted-foreground">Toggle your meals for today. Changes are saved automatically.</p>
-            </div>
-        </div>
       <Card>
         <CardHeader>
           <CardTitle className="font-headline">Today's Meals</CardTitle>
