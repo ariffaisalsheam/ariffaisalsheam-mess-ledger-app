@@ -167,7 +167,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
         // As manager can get duplicate notifications (one for 'manager' and one for their 'userId'), we filter them
         if (role === 'manager') {
             const uniqueNotifications = Array.from(new Map(notifications.map(n => [n.id, n])).values());
-            callback(uniqueNotifications);
+            callback(uniqueNotifications.sort((a,b) => b.timestamp.toMillis() - a.timestamp.toMillis()));
         } else {
             callback(notifications);
         }
@@ -177,20 +177,44 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     return unsubscribe;
 }
 
-
-export const markNotificationsAsRead = async (messId: string, notificationIds: string[]) => {
-    if (!db || notificationIds.length === 0) return;
+export const deleteNotification = async (messId: string, notificationId: string) => {
+    if (!db) return;
     try {
+        const notificationRef = doc(db, 'messes', messId, 'notifications', notificationId);
+        await deleteDoc(notificationRef);
+    } catch (error) {
+        console.error("Error deleting notification:", error);
+        throw error;
+    }
+};
+
+export const deleteAllNotificationsForUser = async (messId: string, userId: string, role: 'manager' | 'member') => {
+    if (!db || !role) return;
+    try {
+        const notificationsRef = collection(db, 'messes', messId, 'notifications');
+        let q;
+        if (role === 'manager') {
+            q = query(notificationsRef, where('userId', 'in', ['manager', userId]));
+        } else {
+            q = query(notificationsRef, where('userId', '==', userId));
+        }
+        
+        const snapshot = await getFirestoreDocs(q);
+
+        if (snapshot.empty) {
+            return;
+        }
+
         const batch = writeBatch(db);
-        notificationIds.forEach(id => {
-            const notifRef = doc(db, 'messes', messId, 'notifications', id);
-            batch.update(notifRef, { read: true });
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
         });
         await batch.commit();
     } catch (error) {
-        console.error("Error marking notifications as read:", error);
+        console.error("Error deleting all notifications:", error);
+        throw error;
     }
-}
+};
 
 
 // Create or update user in Firestore
@@ -963,25 +987,14 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         
         const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         
-        const wasSetByUser = oldMealData.isSetByUser;
-        const isNowSetByUser = newMeals.isSetByUser === undefined ? wasSetByUser : newMeals.isSetByUser;
-
-        const oldPersonalTotal = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0);
-        const newPersonalTotal = (newMeals.breakfast ?? oldMealData.breakfast ?? 0) + (newMeals.lunch ?? oldMealData.lunch ?? 0) + (newMeals.dinner ?? oldMealData.dinner ?? 0);
-
-        let mealCountChange = 0;
+        // This logic handles only the personal meals, not guest meals, for meal count changes.
+        const oldPersonalTotal = (oldMealData.breakfast ?? 0) + (oldMealData.lunch ?? 0) + (oldMealData.dinner ?? 0);
         
-        if (wasSetByUser && !isNowSetByUser) {
-            // Meals are being cleared/reset to default
-            mealCountChange = -oldPersonalTotal;
-        } else if (!wasSetByUser && isNowSetByUser) {
-            // Meals are being set for the first time
-            mealCountChange = newPersonalTotal;
-        } else if (wasSetByUser && isNowSetByUser) {
-            // Meals were set and are being changed
-            mealCountChange = newPersonalTotal - oldPersonalTotal;
-        }
+        const newMealData = { ...oldMealData, ...newMeals };
+        const newPersonalTotal = (newMealData.breakfast ?? 0) + (newMealData.lunch ?? 0) + (newMealData.dinner ?? 0);
 
+        const mealCountChange = newPersonalTotal - oldPersonalTotal;
+        
         if (mealCountChange !== 0) {
             const currentTotalMeals = memberDoc.data().meals || 0;
             const newTotalMeals = currentTotalMeals + mealCountChange;
@@ -1000,21 +1013,13 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
 
-    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr));
+    const q = query(mealsColRef, where(documentId(), ">=", dateLimitStr), orderBy(documentId(), "desc"));
     const querySnapshot = await getFirestoreDocs(q);
     
-    const allEntries: MealLedgerEntry[] = [];
-    querySnapshot.forEach(doc => {
-        allEntries.push({
-            date: doc.id,
-            ...(doc.data() as MealStatus)
-        });
-    });
-    
-    // Sort by date string descending
-    allEntries.sort((a, b) => b.date.localeCompare(a.date));
-
-    return allEntries;
+    return querySnapshot.docs.map(doc => ({
+        date: doc.id,
+        ...(doc.data() as MealStatus)
+    }));
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {

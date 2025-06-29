@@ -31,6 +31,7 @@ import {
   Loader2,
   Clock,
   ClipboardList,
+  X,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +45,8 @@ import {
     onPendingItemsChange,
     ensureDailyMealDocs,
     onNotificationsChange,
-    markNotificationsAsRead,
+    deleteNotification,
+    deleteAllNotificationsForUser,
     type UserProfile, 
     type Member,
     type Notification
@@ -102,7 +104,17 @@ export default function DashboardLayout({
                     setMessName(mess?.name as string || "No Mess");
 
                     memberDetailsUnsubscribe = onMemberDetailsChange(profile.messId, authUser.uid, setMemberDetails);
-                    notificationsUnsubscribe = onNotificationsChange(profile.messId, authUser.uid, profile.role, setNotifications);
+                    
+                    if (profile.role) {
+                         notificationsUnsubscribe = onNotificationsChange(profile.messId, authUser.uid, profile.role, (newNotifications) => {
+                            const thirtyDaysAgo = new Date();
+                            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                            
+                            const filtered = newNotifications.filter(n => n.timestamp && n.timestamp.toDate() > thirtyDaysAgo);
+                            
+                            setNotifications(filtered);
+                        });
+                    }
 
                     if (profile.role === 'manager') {
                         pendingItemsUnsubscribe = onPendingItemsChange(profile.messId, setPendingReviews);
@@ -184,15 +196,17 @@ export default function DashboardLayout({
     { href: "/dashboard/review", icon: <CheckSquare className="h-4 w-4" />, label: "Review", badge: pendingReviews },
   ];
   
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  const handleBellClick = () => {
-      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-      if (unreadIds.length > 0 && userProfile?.messId) {
-          markNotificationsAsRead(userProfile.messId, unreadIds);
-      }
+  const handleDeleteNotification = async (notificationId: string) => {
+    if (userProfile?.messId) {
+        await deleteNotification(userProfile.messId, notificationId);
+    }
   };
 
+  const handleClearAllNotifications = async () => {
+    if (userProfile?.messId && authUser?.uid && userProfile.role) {
+        await deleteAllNotificationsForUser(userProfile.messId, authUser.uid, userProfile.role);
+    }
+  };
 
   if (loading) {
     return (
@@ -203,6 +217,7 @@ export default function DashboardLayout({
   }
   
   const userBalance = memberDetails?.balance ?? 0;
+  const notificationCount = notifications.length;
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -277,31 +292,47 @@ export default function DashboardLayout({
           <div className="w-full flex-1">
              <h1 className="font-headline text-xl">{pageTitle}</h1>
           </div>
-          <Popover onOpenChange={(open) => { if (open) handleBellClick(); }}>
+          <Popover>
             <PopoverTrigger asChild>
                 <Button variant="outline" size="icon" className="h-8 w-8 relative">
                     <Bell className="h-4 w-4" />
-                    {unreadCount > 0 && (
+                    {notificationCount > 0 && (
                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-xs text-white">
-                            {unreadCount}
+                            {notificationCount}
                         </span>
                     )}
                     <span className="sr-only">Toggle notifications</span>
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="w-80 p-0">
-                <div className="p-3 border-b">
+                <div className="p-3 border-b flex justify-between items-center">
                     <h3 className="font-medium font-headline text-sm">Notifications</h3>
+                    {notificationCount > 0 && (
+                        <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={handleClearAllNotifications}>
+                            Clear all
+                        </Button>
+                    )}
                 </div>
                 <ScrollArea className="h-96">
-                    {notifications.length > 0 ? (
+                    {notificationCount > 0 ? (
                         notifications.map(n => (
-                            <div key={n.id} className="p-3 border-b last:border-b-0 hover:bg-muted/50">
-                                <p className={cn("text-sm", !n.read && "font-semibold")}>{n.message}</p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                                    <Clock className="h-3 w-3" />
-                                    {n.timestamp ? formatDistanceToNow(n.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
-                                </p>
+                            <div key={n.id} className="relative group p-3 border-b last:border-b-0 hover:bg-muted/50">
+                                <div className="pr-6">
+                                    <p className="text-sm">{n.message}</p>
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                        <Clock className="h-3 w-3" />
+                                        {n.timestamp ? formatDistanceToNow(n.timestamp.toDate(), { addSuffix: true }) : 'Just now'}
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute top-1/2 right-1 -translate-y-1/2 h-7 w-7 rounded-full opacity-0 group-hover:opacity-100"
+                                    onClick={() => handleDeleteNotification(n.id)}
+                                >
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">Delete notification</span>
+                                </Button>
                             </div>
                         ))
                     ) : (
