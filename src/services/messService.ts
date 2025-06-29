@@ -131,6 +131,8 @@ export interface MonthlyReport {
     totalMeals: number;
     mealRate: number;
     memberReports: MemberReport[];
+    expenses: Expense[];
+    deposits: Deposit[];
 }
 
 
@@ -1511,6 +1513,8 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
         totalMeals,
         mealRate,
         memberReports,
+        expenses,
+        deposits,
     };
 };
 

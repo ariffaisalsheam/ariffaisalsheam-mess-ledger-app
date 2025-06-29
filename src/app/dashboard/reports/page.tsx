@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Printer, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { getUserProfile, generateMonthlyReport, type UserProfile, type MonthlyReport } from '@/services/messService';
+import { getUserProfile, generateMonthlyReport, type UserProfile, type MonthlyReport, type Expense, type Deposit } from '@/services/messService';
+import { format } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function ReportsPage() {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -193,6 +195,71 @@ export default function ReportsPage() {
                                     </Table>
                                </div>
                             </div>
+
+                            {/* Transaction Details */}
+                             <div className="pt-6 border-t">
+                                <h3 className="text-lg font-headline mb-4">Transaction Details</h3>
+                                <Tabs defaultValue="expenses">
+                                    <TabsList className="grid w-full grid-cols-2">
+                                        <TabsTrigger value="expenses">Expenses ({report.expenses.length})</TabsTrigger>
+                                        <TabsTrigger value="deposits">Deposits ({report.deposits.length})</TabsTrigger>
+                                    </TabsList>
+                                    <TabsContent value="expenses" className="mt-4">
+                                        <div className="border rounded-lg">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead>Description</TableHead>
+                                                        <TableHead>Added By</TableHead>
+                                                        <TableHead className="text-right">Amount</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {report.expenses.length > 0 ? report.expenses.map((expense: Expense) => (
+                                                        <TableRow key={expense.id}>
+                                                            <TableCell>{format(new Date(expense.date), 'PP')}</TableCell>
+                                                            <TableCell>{expense.description}</TableCell>
+                                                            <TableCell>{expense.addedBy}</TableCell>
+                                                            <TableCell className="text-right font-mono">- ৳{expense.amount.toFixed(2)}</TableCell>
+                                                        </TableRow>
+                                                    )) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={4} className="text-center h-24">No expenses for this month.</TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </TabsContent>
+                                    <TabsContent value="deposits" className="mt-4">
+                                        <div className="border rounded-lg">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead>Member</TableHead>
+                                                        <TableHead className="text-right">Amount</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {report.deposits.length > 0 ? report.deposits.map((deposit: Deposit) => (
+                                                        <TableRow key={deposit.id}>
+                                                            <TableCell>{format(new Date(deposit.date), 'PP')}</TableCell>
+                                                            <TableCell>{deposit.memberName}</TableCell>
+                                                            <TableCell className="text-right font-mono text-green-500">+ ৳{deposit.amount.toFixed(2)}</TableCell>
+                                                        </TableRow>
+                                                    )) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={3} className="text-center h-24">No deposits for this month.</TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </TabsContent>
+                                </Tabs>
+                            </div>
                         </div>
                     </CardContent>
                     <CardFooter className="print:hidden">
@@ -205,8 +272,10 @@ export default function ReportsPage() {
                     body > *:not(#report-content) {
                         display: none;
                     }
-                    #report-content {
+                    #report-content, #report-content * {
                         display: block;
+                    }
+                    #report-content {
                         position: absolute;
                         top: 0;
                         left: 0;
