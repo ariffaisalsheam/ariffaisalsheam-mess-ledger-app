@@ -113,33 +113,67 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     if (!db || !role) return () => {};
 
     const notificationsRef = collection(db, 'messes', messId, 'notifications');
-    // Managers get their own notifications + general manager notifications
-    const userAndManagerIds = role === 'manager' ? [userId, 'manager'] : [userId];
+    let personalNotifications: Notification[] = [];
+    let managerNotifications: Notification[] = [];
+    const unsubscribes: (() => void)[] = [];
 
-    const q = query(
+    const combineAndCallback = () => {
+        // Combine, sort by timestamp descending, and take the most recent 20
+        const allNotifications = [...personalNotifications, ...managerNotifications];
+        allNotifications.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis() || 0;
+            const timeB = b.timestamp?.toMillis() || 0;
+            return timeB - timeA;
+        });
+        callback(allNotifications.slice(0, 20));
+    };
+
+    // Listener for personal notifications
+    const personalQuery = query(
         notificationsRef, 
-        where('userId', 'in', userAndManagerIds), 
+        where('userId', '==', userId), 
         orderBy('timestamp', 'desc'), 
         limit(20)
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const notifications = snapshot.docs.map(doc => ({
+    const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
+        personalNotifications = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             timestamp: doc.data().timestamp as Timestamp
         })) as Notification[];
-        callback(notifications);
+        combineAndCallback();
     }, (error) => {
-        console.error("Error fetching notifications in real-time:", error);
-        // Firebase logs an error if the index is missing. This provides a fallback.
-        if (error.code === 'failed-precondition') {
-            console.warn("Firestore index for notifications is missing. Please create it in the Firebase console to enable real-time notifications.");
-        }
+        console.error("Error fetching personal notifications:", error);
     });
+    unsubscribes.push(personalUnsubscribe);
 
-    return unsubscribe;
+    // If the user is a manager, also listen for manager-wide notifications
+    if (role === 'manager') {
+        const managerQuery = query(
+            notificationsRef, 
+            where('userId', '==', 'manager'), 
+            orderBy('timestamp', 'desc'), 
+            limit(20)
+        );
+        const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
+            managerNotifications = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                timestamp: doc.data().timestamp as Timestamp
+            })) as Notification[];
+            combineAndCallback();
+        }, (error) => {
+            console.error("Error fetching manager notifications:", error);
+        });
+        unsubscribes.push(managerUnsubscribe);
+    }
+    
+    // Return a single function that unsubscribes from all listeners
+    return () => {
+        unsubscribes.forEach(unsub => unsub());
+    };
 }
+
 
 export const markNotificationsAsRead = async (messId: string, notificationIds: string[]) => {
     if (!db || notificationIds.length === 0) return;
