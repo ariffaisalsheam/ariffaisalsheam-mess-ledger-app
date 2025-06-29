@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { updateDeposit, type Deposit } from '@/services/messService';
+import { updateDeposit, requestDepositEdit, type Deposit } from '@/services/messService';
 
 interface EditDepositDialogProps {
   isOpen: boolean;
@@ -23,9 +23,10 @@ interface EditDepositDialogProps {
   deposit: Deposit;
   messId: string;
   onSuccess: () => void;
+  isMemberRequest?: boolean;
 }
 
-export function EditDepositDialog({ isOpen, setIsOpen, deposit, messId, onSuccess }: EditDepositDialogProps) {
+export function EditDepositDialog({ isOpen, setIsOpen, deposit, messId, onSuccess, isMemberRequest = false }: EditDepositDialogProps) {
   const [amount, setAmount] = useState(deposit.amount.toString());
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
@@ -48,18 +49,26 @@ export function EditDepositDialog({ isOpen, setIsOpen, deposit, messId, onSucces
 
     setSubmitting(true);
     try {
-      await updateDeposit(messId, deposit.id, deposit.userId, deposit.amount, newAmount);
-      toast({
-        title: "Success!",
-        description: "The deposit has been updated.",
-      });
+      if (isMemberRequest) {
+        await requestDepositEdit(messId, deposit, newAmount);
+        toast({
+          title: "Request Sent!",
+          description: "Your edit request has been sent to the manager for approval.",
+        });
+      } else {
+        await updateDeposit(messId, deposit, newAmount);
+        toast({
+          title: "Success!",
+          description: "The deposit has been updated.",
+        });
+      }
       onSuccess();
       setIsOpen(false);
     } catch (error) {
-      console.error("Failed to update deposit:", error);
+      console.error("Failed to process deposit edit:", error);
       toast({
         title: "Error",
-        description: "Could not update the deposit. Please try again.",
+        description: "Could not process the request. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -71,9 +80,11 @@ export function EditDepositDialog({ isOpen, setIsOpen, deposit, messId, onSucces
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="font-headline">Edit Deposit</DialogTitle>
+          <DialogTitle className="font-headline">{isMemberRequest ? 'Request Deposit Edit' : 'Edit Deposit'}</DialogTitle>
           <DialogDescription>
-            Update the deposit amount for {deposit.memberName}. The member's balance will be adjusted automatically.
+            {isMemberRequest
+              ? 'Propose a new amount for this deposit. This will be sent to the manager for approval.'
+              : `Update the deposit amount for ${deposit.memberName}. The member's balance will be adjusted automatically.`}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -95,7 +106,7 @@ export function EditDepositDialog({ isOpen, setIsOpen, deposit, messId, onSucces
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
           <Button type="submit" onClick={handleSubmit} disabled={submitting}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            {isMemberRequest ? 'Send Request' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

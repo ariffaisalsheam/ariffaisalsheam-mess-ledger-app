@@ -51,6 +51,13 @@ export interface Expense {
     addedBy: string; // User's name
     date: string; // ISO string
     userId: string;
+    // For pending requests
+    type?: 'new' | 'edit' | 'delete';
+    originalId?: string;
+    originalData?: {
+        amount: number;
+        description: string;
+    };
 }
 
 export interface Deposit {
@@ -59,6 +66,10 @@ export interface Deposit {
     memberName: string; // Submitter's name
     date: string; // ISO string
     userId: string;
+    // For pending requests
+    type?: 'new' | 'edit' | 'delete';
+    originalId?: string;
+    originalAmount?: number;
 }
 
 export interface MealSettings {
@@ -115,42 +126,30 @@ export const createNotification = async (messId: string, notificationData: Omit<
 export const onNotificationsChange = (messId: string, userId: string, role: 'manager' | 'member' | undefined, callback: (notifications: Notification[]) => void) => {
     if (!db || !role) return () => {};
 
-    let allNotifications: Notification[] = [];
-    const unsubscribes: (() => void)[] = [];
+    const qPersonal = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId));
+    const qManager = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'));
     
-    const combineAndCallback = () => {
-        // Use a Map to ensure unique notifications by ID
-        const uniqueNotificationsMap = new Map<string, Notification>();
-        allNotifications.forEach(n => uniqueNotificationsMap.set(n.id, n));
-        const uniqueNotifications = Array.from(uniqueNotificationsMap.values());
-        
-        // Sort after combining
-        uniqueNotifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
-        callback(uniqueNotifications.slice(0, 20));
-    };
-    
-    // Listener for personal notifications
-    const personalQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', userId), limit(20));
-    const personalUnsubscribe = onSnapshot(personalQuery, (snapshot) => {
+    const unsubPersonal = onSnapshot(qPersonal, (snapshot) => {
         const personalNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-        allNotifications = [...allNotifications.filter(n => n.userId !== userId), ...personalNotifications];
-        combineAndCallback();
+        // This is a simplified listener, a more robust solution would combine results
+        // For now, let's just use personal notifications and managers will see theirs separately
+        if (role !== 'manager') {
+             const sorted = personalNotifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+             callback(sorted);
+        }
     }, (error) => console.error("Error on personal notifications snapshot:", error));
-    unsubscribes.push(personalUnsubscribe);
 
-    // Listener for manager notifications if applicable
-    if (role === 'manager') {
-        const managerQuery = query(collection(db, 'messes', messId, 'notifications'), where('userId', '==', 'manager'), limit(20));
-        const managerUnsubscribe = onSnapshot(managerQuery, (snapshot) => {
-            const managerNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
-            allNotifications = [...allNotifications.filter(n => n.userId !== 'manager'), ...managerNotifications];
-            combineAndCallback();
-        }, (error) => console.error("Error on manager notifications snapshot:", error));
-        unsubscribes.push(managerUnsubscribe);
-    }
-    
+    const unsubManager = onSnapshot(query(collection(db, 'messes', messId, 'notifications'), where('userId', 'in', ['manager', userId])), (snapshot) => {
+        if (role === 'manager') {
+            const notifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Notification);
+            const sorted = notifications.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+            callback(sorted);
+        }
+    }, (error) => console.error("Error on manager notifications snapshot:", error));
+
     return () => {
-        unsubscribes.forEach(unsub => unsub());
+        unsubPersonal();
+        unsubManager();
     };
 }
 
@@ -441,38 +440,32 @@ export const getDeposits = async (messId: string): Promise<Deposit[]> => {
 export const getDepositsForUser = async (messId: string, userId: string): Promise<Deposit[]> => {
     if (!db) return [];
     const depositsCol = collection(db, 'messes', messId, 'deposits');
-    const q = query(depositsCol, where("userId", "==", userId));
+    const q = query(depositsCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
-    const deposits = snapshot.docs.map(doc => {
+    return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Deposit;
     });
-    // Sort by date descending
-    deposits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return deposits;
 };
 
 export const getExpensesForUser = async (messId: string, userId: string): Promise<Expense[]> => {
     if (!db) return [];
     const expensesCol = collection(db, 'messes', messId, 'expenses');
-    const q = query(expensesCol, where("userId", "==", userId));
+    const q = query(expensesCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
-    const expenses = snapshot.docs.map(doc => {
+    return snapshot.docs.map(doc => {
         const data = doc.data();
         const date = (data.date as Timestamp).toDate().toISOString();
         return { id: doc.id, ...data, date } as Expense;
     });
-    // Sort by date descending
-    expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    return expenses;
 };
 
-export const updateDeposit = async (messId: string, depositId: string, userId: string, oldAmount: number, newAmount: number) => {
+export const updateDeposit = async (messId: string, deposit: Deposit, newAmount: number) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const depositRef = doc(db, 'messes', messId, 'deposits', depositId);
-    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
+    const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
 
     await runTransaction(db, async (transaction) => {
         const memberDoc = await transaction.get(memberRef);
@@ -480,7 +473,7 @@ export const updateDeposit = async (messId: string, depositId: string, userId: s
             throw new Error("Member not found.");
         }
 
-        const balanceChange = newAmount - oldAmount;
+        const balanceChange = newAmount - deposit.amount;
         const newBalance = (memberDoc.data().balance || 0) + balanceChange;
 
         transaction.update(memberRef, { balance: newBalance });
@@ -488,11 +481,11 @@ export const updateDeposit = async (messId: string, depositId: string, userId: s
     });
 };
 
-export const deleteDeposit = async (messId: string, depositId: string, userId: string, amount: number) => {
+export const deleteDeposit = async (messId: string, deposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const depositRef = doc(db, 'messes', messId, 'deposits', depositId);
-    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
+    const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
 
     await runTransaction(db, async (transaction) => {
         const memberDoc = await transaction.get(memberRef);
@@ -500,7 +493,7 @@ export const deleteDeposit = async (messId: string, depositId: string, userId: s
             throw new Error("Member not found.");
         }
 
-        const newBalance = (memberDoc.data().balance || 0) - amount;
+        const newBalance = (memberDoc.data().balance || 0) - deposit.amount;
 
         transaction.update(memberRef, { balance: newBalance });
         transaction.delete(depositRef);
@@ -527,6 +520,7 @@ export const addDeposit = async (messId: string, userId: string, amount: number)
     const user = await getUserProfile(userId);
     const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
     await addDoc(pendingDepositsRef, {
+        type: 'new',
         amount,
         userId,
         memberName: user?.displayName || "Unknown Member",
@@ -545,6 +539,7 @@ export const addExpense = async (messId: string, userId: string, amount: number,
     const user = await getUserProfile(userId);
     const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
     await addDoc(pendingExpensesRef, {
+        type: 'new',
         amount,
         description,
         userId,
@@ -555,6 +550,93 @@ export const addExpense = async (messId: string, userId: string, amount: number,
     await createNotification(messId, {
         userId: 'manager',
         message: `${user?.displayName} submitted a new expense of ৳${amount} for review.`,
+        link: '/dashboard/review'
+    });
+};
+
+export const requestDepositEdit = async (messId: string, deposit: Deposit, newAmount: number) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(deposit.userId);
+    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    await addDoc(pendingDepositsRef, {
+        type: 'edit',
+        originalId: deposit.id,
+        originalAmount: deposit.amount,
+        amount: newAmount, // The new amount
+        userId: deposit.userId,
+        memberName: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} requested to edit a deposit.`,
+        link: '/dashboard/review'
+    });
+};
+
+export const requestDepositDelete = async (messId: string, deposit: Deposit) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(deposit.userId);
+    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    await addDoc(pendingDepositsRef, {
+        type: 'delete',
+        originalId: deposit.id,
+        amount: deposit.amount, // The amount to be reversed
+        userId: deposit.userId,
+        memberName: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} requested to delete a deposit.`,
+        link: '/dashboard/review'
+    });
+};
+
+export const requestExpenseEdit = async (messId: string, expense: Expense, newAmount: number, newDescription: string) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(expense.userId);
+    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    await addDoc(pendingExpensesRef, {
+        type: 'edit',
+        originalId: expense.id,
+        originalData: {
+            amount: expense.amount,
+            description: expense.description
+        },
+        amount: newAmount,
+        description: newDescription,
+        userId: expense.userId,
+        addedBy: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} requested to edit an expense.`,
+        link: '/dashboard/review'
+    });
+};
+
+export const requestExpenseDelete = async (messId: string, expense: Expense) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const user = await getUserProfile(expense.userId);
+    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    await addDoc(pendingExpensesRef, {
+        type: 'delete',
+        originalId: expense.id,
+        amount: expense.amount,
+        description: expense.description,
+        userId: expense.userId,
+        addedBy: user?.displayName || "Unknown Member",
+        date: serverTimestamp(),
+        status: 'pending'
+    });
+    await createNotification(messId, {
+        userId: 'manager',
+        message: `${user?.displayName} requested to delete an expense.`,
         link: '/dashboard/review'
     });
 };
@@ -581,45 +663,43 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
     });
 };
 
-export const approveDeposit = async (messId: string, depositId: string) => {
+export const approveDeposit = async (messId: string, pendingDeposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
-    const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', depositId);
-    let pendingData: any = null;
+    const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
+    const type = pendingDeposit.type || 'new';
 
     await runTransaction(db, async (transaction) => {
-        const pendingDoc = await transaction.get(pendingDepositRef);
-        if (!pendingDoc.exists()) {
-            throw "Pending deposit document does not exist!";
-        }
-
-        pendingData = pendingDoc.data();
-        const memberRef = doc(db, 'messes', messId, 'members', pendingData.userId);
-        
+        const memberRef = doc(db, 'messes', messId, 'members', pendingDeposit.userId);
         const memberDoc = await transaction.get(memberRef);
         if (!memberDoc.exists()) {
-            throw `Member with ID ${pendingData.userId} not found in mess ${messId}`;
+            throw `Member with ID ${pendingDeposit.userId} not found in mess ${messId}`;
         }
 
-        const newBalance = (memberDoc.data().balance || 0) + pendingData.amount;
-
-        const newDepositRef = doc(collection(db, 'messes', messId, 'deposits'));
-        transaction.set(newDepositRef, {
-            ...pendingData,
-            status: 'approved',
-            approvedAt: serverTimestamp(),
-        });
-
-        transaction.update(memberRef, { balance: newBalance });
+        if (type === 'new') {
+            const newBalance = (memberDoc.data().balance || 0) + pendingDeposit.amount;
+            const newDepositRef = doc(collection(db, 'messes', messId, 'deposits'));
+            transaction.set(newDepositRef, { ...pendingDeposit, status: 'approved', approvedAt: serverTimestamp(), type: undefined, originalId: undefined, originalAmount: undefined });
+            transaction.update(memberRef, { balance: newBalance });
+        } else if (type === 'edit') {
+            const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
+            const balanceChange = pendingDeposit.amount - pendingDeposit.originalAmount!;
+            const newBalance = (memberDoc.data().balance || 0) + balanceChange;
+            transaction.update(originalDepositRef, { amount: pendingDeposit.amount });
+            transaction.update(memberRef, { balance: newBalance });
+        } else if (type === 'delete') {
+            const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
+            const newBalance = (memberDoc.data().balance || 0) - pendingDeposit.amount;
+            transaction.delete(originalDepositRef);
+            transaction.update(memberRef, { balance: newBalance });
+        }
         transaction.delete(pendingDepositRef);
     });
-
-    if (pendingData) {
-        await createNotification(messId, {
-            userId: pendingData.userId,
-            message: `Your deposit of ৳${pendingData.amount.toFixed(2)} was approved.`,
-            link: '/dashboard'
-        });
-    }
+    
+    await createNotification(messId, {
+        userId: pendingDeposit.userId,
+        message: `Your deposit request was approved.`,
+        link: '/dashboard'
+    });
 };
 
 export const rejectDeposit = async (messId: string, depositId: string) => {
@@ -632,40 +712,35 @@ export const rejectDeposit = async (messId: string, depositId: string) => {
         await deleteDoc(depositRef);
         await createNotification(messId, {
             userId: depositData.userId,
-            message: `Your deposit of ৳${depositData.amount.toFixed(2)} was rejected.`
+            message: `Your deposit request was rejected.`
         });
     }
 };
 
-export const approveExpense = async (messId: string, expenseId: string) => {
+export const approveExpense = async (messId: string, pendingExpense: Expense) => {
     if (!db) throw new Error("Firestore not initialized");
-    const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', expenseId);
-    let pendingData: any = null;
-    
+    const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', pendingExpense.id);
+    const type = pendingExpense.type || 'new';
+
     await runTransaction(db, async (transaction) => {
-        const pendingDoc = await transaction.get(pendingExpenseRef);
-        if (!pendingDoc.exists()) {
-            throw "Pending expense document does not exist!";
+        if (type === 'new') {
+            const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
+            transaction.set(newExpenseRef, { ...pendingExpense, status: 'approved', approvedAt: serverTimestamp(), type: undefined, originalId: undefined, originalData: undefined });
+        } else if (type === 'edit') {
+            const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
+            transaction.update(originalExpenseRef, { amount: pendingExpense.amount, description: pendingExpense.description });
+        } else if (type === 'delete') {
+            const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
+            transaction.delete(originalExpenseRef);
         }
-        
-        pendingData = pendingDoc.data();
-        const newExpenseRef = doc(collection(db, 'messes', messId, 'expenses'));
-        transaction.set(newExpenseRef, {
-            ...pendingData,
-            status: 'approved',
-            approvedAt: serverTimestamp(),
-        });
-        
         transaction.delete(pendingExpenseRef);
     });
 
-    if (pendingData) {
-        await createNotification(messId, {
-            userId: pendingData.userId,
-            message: `Your expense for "${pendingData.description}" (৳${pendingData.amount.toFixed(2)}) was approved.`,
-            link: '/dashboard'
-        });
-    }
+    await createNotification(messId, {
+        userId: pendingExpense.userId,
+        message: `Your expense request for "${pendingExpense.description}" was approved.`,
+        link: '/dashboard'
+    });
 };
 
 export const rejectExpense = async (messId: string, expenseId: string) => {
@@ -677,7 +752,7 @@ export const rejectExpense = async (messId: string, expenseId: string) => {
         await deleteDoc(expenseRef);
         await createNotification(messId, {
             userId: expenseData.userId,
-            message: `Your expense for "${expenseData.description}" was rejected.`
+            message: `Your expense request for "${expenseData.description}" was rejected.`
         });
     }
 };
@@ -841,7 +916,7 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
             throw `Member with ID ${userId} not found in mess ${messId}`;
         }
         
-        const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0 };
+        const oldMealData = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false };
         const oldMealTotalForDate = (oldMealData.isSetByUser ? (oldMealData.breakfast || 0) : 0) + (oldMealData.isSetByUser ? (oldMealData.lunch || 0) : 0) + (oldMealData.isSetByUser ? (oldMealData.dinner || 0) : 0);
 
         const newMealTotalForDate = (newMeals.breakfast || 0) + (newMeals.lunch || 0) + (newMeals.dinner || 0);
@@ -850,15 +925,13 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         
         const currentTotalMeals = memberDoc.data().meals || 0;
         
-        const isSame = mealCountChange === 0 && mealDoc.exists() && mealDoc.data()?.isSetByUser === newMeals.isSetByUser;
-        if(isSame) return;
-
-        if(mealCountChange !== 0) {
-            const newTotalMeals = currentTotalMeals + mealCountChange;
-            transaction.update(memberRef, { meals: newTotalMeals });
+        if (mealCountChange !== 0 || mealDoc.exists() && newMeals.isSetByUser !== oldMealData.isSetByUser) {
+             if(mealCountChange !== 0) {
+                const newTotalMeals = currentTotalMeals + mealCountChange;
+                transaction.update(memberRef, { meals: newTotalMeals });
+            }
+            transaction.set(mealDocRef, newMeals, { merge: true });
         }
-
-        transaction.set(mealDocRef, newMeals, { merge: true });
     });
 };
 
@@ -866,10 +939,8 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
     if (!db) throw new Error("Firestore not initialized");
     
     const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
-
-    // To avoid complex indexes, we fetch recent documents and filter/sort client-side.
-    // This is less efficient for very large datasets but avoids index management for now.
-    const querySnapshot = await getFirestoreDocs(mealsColRef);
+    const q = query(mealsColRef, orderBy(documentId(), "desc"), limit(days));
+    const querySnapshot = await getFirestoreDocs(q);
     
     const allEntries: MealLedgerEntry[] = [];
     querySnapshot.forEach(doc => {
@@ -879,11 +950,7 @@ export const getMealLedgerForUser = async (messId: string, userId: string, days:
         });
     });
 
-    // Sort by date descending
-    allEntries.sort((a, b) => b.date.localeCompare(a.date));
-
-    // Return the last 'days' entries
-    return allEntries.slice(0, days);
+    return allEntries;
 }
 
 export const getMealHistoryForMess = async (messId: string, days: number = 7): Promise<MessMealHistoryEntry[]> => {

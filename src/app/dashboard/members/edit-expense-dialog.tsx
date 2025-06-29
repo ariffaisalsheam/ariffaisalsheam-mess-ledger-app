@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { updateExpense, type Expense } from '@/services/messService';
+import { updateExpense, requestExpenseEdit, type Expense } from '@/services/messService';
 
 interface EditExpenseDialogProps {
   isOpen: boolean;
@@ -24,9 +24,10 @@ interface EditExpenseDialogProps {
   expense: Expense;
   messId: string;
   onSuccess: () => void;
+  isMemberRequest?: boolean;
 }
 
-export function EditExpenseDialog({ isOpen, setIsOpen, expense, messId, onSuccess }: EditExpenseDialogProps) {
+export function EditExpenseDialog({ isOpen, setIsOpen, expense, messId, onSuccess, isMemberRequest = false }: EditExpenseDialogProps) {
   const [amount, setAmount] = useState(expense.amount.toString());
   const [description, setDescription] = useState(expense.description);
   const [submitting, setSubmitting] = useState(false);
@@ -50,18 +51,26 @@ export function EditExpenseDialog({ isOpen, setIsOpen, expense, messId, onSucces
 
     setSubmitting(true);
     try {
-      await updateExpense(messId, expense.id, newAmount, description.trim());
-      toast({
-        title: "Success!",
-        description: "The expense has been updated.",
-      });
+      if (isMemberRequest) {
+        await requestExpenseEdit(messId, expense, newAmount, description.trim());
+        toast({
+          title: "Request Sent!",
+          description: "Your edit request has been sent to the manager for approval.",
+        });
+      } else {
+        await updateExpense(messId, expense.id, newAmount, description.trim());
+        toast({
+          title: "Success!",
+          description: "The expense has been updated.",
+        });
+      }
       onSuccess();
       setIsOpen(false);
     } catch (error) {
       console.error("Failed to update expense:", error);
       toast({
         title: "Error",
-        description: "Could not update the expense. Please try again.",
+        description: "Could not process the request. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -73,9 +82,11 @@ export function EditExpenseDialog({ isOpen, setIsOpen, expense, messId, onSucces
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="font-headline">Edit Expense</DialogTitle>
+          <DialogTitle className="font-headline">{isMemberRequest ? 'Request Expense Edit' : 'Edit Expense'}</DialogTitle>
           <DialogDescription>
-            Update the expense details submitted by {expense.addedBy}.
+            {isMemberRequest
+              ? 'Propose new details for this expense. This will be sent to the manager for approval.'
+              : `Update the expense details submitted by ${expense.addedBy}.`}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -109,10 +120,11 @@ export function EditExpenseDialog({ isOpen, setIsOpen, expense, messId, onSucces
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
           <Button type="submit" onClick={handleSubmit} disabled={submitting}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save Changes
+            {isMemberRequest ? 'Send Request' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+

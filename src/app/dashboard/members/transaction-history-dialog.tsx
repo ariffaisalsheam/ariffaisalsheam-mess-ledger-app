@@ -21,6 +21,8 @@ import {
   getExpensesForUser, 
   deleteDeposit,
   deleteExpense,
+  requestDepositDelete,
+  requestExpenseDelete,
   type Deposit, 
   type Expense, 
   type Member, 
@@ -57,6 +59,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
   const { toast } = useToast();
 
   const isManager = currentUserProfile.role === 'manager';
+  const isOwner = currentUserProfile.uid === member.id;
 
   const fetchData = useCallback(() => {
     if (isOpen && member) {
@@ -104,18 +107,29 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
 
     setIsDeleting(true);
     try {
-      if (deletionTarget.type === 'deposit') {
-        await deleteDeposit(messId, deletionTarget.data.id, deletionTarget.data.userId, deletionTarget.data.amount);
-        toast({ title: "Success", description: "Deposit has been deleted." });
-      } else if (deletionTarget.type === 'expense') {
-        await deleteExpense(messId, deletionTarget.data.id);
-        toast({ title: "Success", description: "Expense has been deleted." });
-      }
+        if (isManager) {
+            if (deletionTarget.type === 'deposit') {
+                await deleteDeposit(messId, deletionTarget.data);
+                toast({ title: "Success", description: "Deposit has been deleted." });
+            } else if (deletionTarget.type === 'expense') {
+                await deleteExpense(messId, deletionTarget.data.id);
+                toast({ title: "Success", description: "Expense has been deleted." });
+            }
+        } else if (isOwner) {
+             if (deletionTarget.type === 'deposit') {
+                await requestDepositDelete(messId, deletionTarget.data);
+                toast({ title: "Request Sent", description: "Your request to delete the deposit has been sent for approval." });
+            } else if (deletionTarget.type === 'expense') {
+                await requestExpenseDelete(messId, deletionTarget.data as Expense);
+                toast({ title: "Request Sent", description: "Your request to delete the expense has been sent for approval." });
+            }
+        }
+      
       onSuccess();
       fetchData(); // Refetch data within the dialog
     } catch (error) {
-      console.error("Failed to delete transaction:", error);
-      toast({ title: "Error", description: "Could not delete the transaction.", variant: "destructive" });
+      console.error("Failed to process delete request:", error);
+      toast({ title: "Error", description: "Could not process the delete request.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
       setDeletionTarget(null);
@@ -130,7 +144,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
             {type === 'expense' && <TableHead>Description</TableHead>}
             <TableHead>Date</TableHead>
             <TableHead className="text-right">Amount</TableHead>
-            {isManager && <TableHead className="text-right">Actions</TableHead>}
+            {(isManager || isOwner) && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -141,7 +155,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
               <TableCell className={`text-right font-mono ${type === 'deposit' ? 'text-green-500' : 'text-red-500'}`}>
                 {type === 'deposit' ? '+' : '-'} ৳{item.amount.toFixed(2)}
               </TableCell>
-              {isManager && (
+              {(isManager || isOwner) && (
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => type === 'deposit' ? handleEditDeposit(item as Deposit) : handleEditExpense(item as Expense)}>
                     <Pencil className="h-4 w-4" />
@@ -154,7 +168,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
             </TableRow>
           )) : (
             <TableRow>
-              <TableCell colSpan={isManager ? 4 : 3} className="h-24 text-center">
+              <TableCell colSpan={(isManager || isOwner) ? 4 : 3} className="h-24 text-center">
                 No {type}s found.
               </TableCell>
             </TableRow>
@@ -171,7 +185,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
           <DialogHeader>
             <DialogTitle className="font-headline">Transaction History for {member.name}</DialogTitle>
             <DialogDescription>
-              View and manage approved deposits and expenses for this member.
+              {isManager ? "View and manage approved deposits and expenses for this member." : (isOwner ? "View your approved transactions. You can request changes to your own records." : "View approved transactions for this member.")}
             </DialogDescription>
           </DialogHeader>
           {loading ? (
@@ -206,6 +220,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
                 fetchData();
                 onSuccess();
             }}
+            isMemberRequest={!isManager && isOwner}
         />
       )}
        {selectedExpense && (
@@ -218,6 +233,7 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
                 fetchData();
                 onSuccess();
             }}
+            isMemberRequest={!isManager && isOwner}
         />
       )}
 
@@ -227,16 +243,17 @@ export function TransactionHistoryDialog({ isOpen, setIsOpen, member, messId, cu
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the {deletionTarget?.type} of 
-              <strong> ৳{deletionTarget?.data.amount.toFixed(2)}</strong>
-              {deletionTarget?.type === 'deposit' && ` and adjust ${member.name}'s balance accordingly.`}
+              {isManager 
+                ? `This action cannot be undone. This will permanently delete the ${deletionTarget?.type} of ৳${deletionTarget?.data.amount.toFixed(2)} and adjust the member's balance.`
+                : `This will send a request to the manager to delete this ${deletionTarget?.type}. You will be notified when it's approved or rejected.`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
               {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Confirm Delete
+              {isManager ? 'Confirm Delete' : 'Send Request'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

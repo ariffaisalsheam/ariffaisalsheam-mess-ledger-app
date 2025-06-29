@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, X, Loader2 } from "lucide-react";
+import { Check, X, Loader2, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -23,6 +23,7 @@ import {
   type UserProfile,
 } from "@/services/messService";
 import { format } from 'date-fns';
+import { Badge } from "@/components/ui/badge";
 
 export default function ReviewPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -69,35 +70,37 @@ export default function ReviewPage() {
     }
   }, [user, router, toast]);
 
-  const handleAction = async (id: string, action: 'approve' | 'reject', type: 'expense' | 'deposit') => {
+  const handleAction = async (item: Deposit | Expense, action: 'approve' | 'reject', type: 'expense' | 'deposit') => {
     if (!userProfile?.messId) return;
 
-    setSubmitting(prev => ({ ...prev, [id]: true }));
+    setSubmitting(prev => ({ ...prev, [item.id]: true }));
     
     try {
         if (type === 'expense') {
+            const expense = item as Expense;
             if (action === 'approve') {
-                await approveExpense(userProfile.messId, id);
-                setPendingExpenses(prev => prev.filter(item => item.id !== id));
+                await approveExpense(userProfile.messId, expense);
+                setPendingExpenses(prev => prev.filter(i => i.id !== expense.id));
             } else {
-                await rejectExpense(userProfile.messId, id);
-                setPendingExpenses(prev => prev.filter(item => item.id !== id));
+                await rejectExpense(userProfile.messId, expense.id);
+                setPendingExpenses(prev => prev.filter(i => i.id !== expense.id));
             }
         } else { // deposit
+            const deposit = item as Deposit;
             if (action === 'approve') {
-                await approveDeposit(userProfile.messId, id);
-                setPendingDeposits(prev => prev.filter(item => item.id !== id));
+                await approveDeposit(userProfile.messId, deposit);
+                setPendingDeposits(prev => prev.filter(i => i.id !== deposit.id));
             } else {
-                await rejectDeposit(userProfile.messId, id);
-                setPendingDeposits(prev => prev.filter(item => item.id !== id));
+                await rejectDeposit(userProfile.messId, deposit.id);
+                setPendingDeposits(prev => prev.filter(i => i.id !== deposit.id));
             }
         }
-        toast({ title: "Success", description: `The ${type} has been ${action}d.` });
+        toast({ title: "Success", description: `The request has been ${action}d.` });
     } catch (error) {
         console.error(`Failed to ${action} ${type}`, error);
-        toast({ title: "Error", description: `Could not ${action} the ${type}. Please try again.`, variant: "destructive" });
+        toast({ title: "Error", description: `Could not process the request. Please try again.`, variant: "destructive" });
     } finally {
-        setSubmitting(prev => ({ ...prev, [id]: false }));
+        setSubmitting(prev => ({ ...prev, [item.id]: false }));
     }
   };
 
@@ -107,6 +110,94 @@ export default function ReviewPage() {
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
+  }
+
+  const renderDepositRequest = (item: Deposit) => {
+    const type = item.type || 'new';
+    
+    return (
+      <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
+        <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+                <Badge variant={type === 'delete' ? 'destructive' : 'secondary'}>{type.toUpperCase()}</Badge>
+                <p className="font-medium text-muted-foreground">Deposit Request</p>
+            </div>
+            {type === 'new' && <p className="font-bold text-xl">৳{item.amount.toFixed(2)}</p>}
+            {type === 'edit' && 
+                <div className="flex items-center gap-2 font-bold text-xl">
+                    <span className="text-muted-foreground line-through">৳{item.originalAmount?.toFixed(2)}</span>
+                    <ArrowRight className="h-4 w-4" />
+                    <span>৳{item.amount.toFixed(2)}</span>
+                </div>
+            }
+            {type === 'delete' && <p className="font-bold text-xl text-destructive line-through">৳{item.amount.toFixed(2)}</p>}
+            <p className="text-sm text-muted-foreground">Submitted by {item.memberName} on {format(new Date(item.date), "PPP")}</p>
+        </div>
+        <div className="flex gap-2">
+            <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item, 'reject', 'deposit')} disabled={submitting[item.id]}>
+                {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
+                <span className="sr-only">Reject</span>
+            </Button>
+            <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item, 'approve', 'deposit')} disabled={submitting[item.id]}>
+                {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
+                <span className="sr-only">Approve</span>
+            </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const renderExpenseRequest = (item: Expense) => {
+    const type = item.type || 'new';
+
+    return (
+        <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
+            <div className="flex-1 space-y-1">
+                 <div className="flex items-center gap-2">
+                    <Badge variant={type === 'delete' ? 'destructive' : 'secondary'}>{type.toUpperCase()}</Badge>
+                    <p className="font-medium text-muted-foreground">Expense Request</p>
+                </div>
+
+                {type === 'new' && (
+                    <>
+                        <p className="font-bold text-xl">৳{item.amount.toFixed(2)}</p>
+                        <p className="font-medium">{item.description}</p>
+                    </>
+                )}
+                {type === 'edit' && (
+                    <>
+                        <div className="flex items-center gap-2 font-bold text-lg">
+                            <span className="text-muted-foreground line-through">৳{item.originalData?.amount.toFixed(2)}</span>
+                            <ArrowRight className="h-4 w-4" />
+                            <span>৳{item.amount.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-start gap-2 text-sm">
+                            <span className="text-muted-foreground line-through">{item.originalData?.description}</span>
+                            <ArrowRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span className="font-medium">{item.description}</span>
+                        </div>
+                    </>
+                )}
+                {type === 'delete' && (
+                    <>
+                        <p className="font-bold text-xl text-destructive line-through">৳{item.amount.toFixed(2)}</p>
+                        <p className="font-medium text-destructive line-through">{item.description}</p>
+                    </>
+                )}
+                <p className="text-sm text-muted-foreground">Submitted by {item.addedBy} on {format(new Date(item.date), "PPP")}</p>
+            </div>
+            <div className="flex gap-2">
+                <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item, 'reject', 'expense')} disabled={submitting[item.id]}>
+                    {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
+                    <span className="sr-only">Reject</span>
+                </Button>
+                <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item, 'approve', 'expense')} disabled={submitting[item.id]}>
+                    {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
+                    <span className="sr-only">Approve</span>
+                </Button>
+            </div>
+        </div>
+    )
   }
 
   return (
@@ -119,57 +210,28 @@ export default function ReviewPage() {
         <TabsContent value="expenses">
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">Pending Expenses</CardTitle>
-              <CardDescription>Review these expense submissions. Approved items will be added to the main calculations.</CardDescription>
+              <CardTitle className="font-headline">Pending Expense Requests</CardTitle>
+              <CardDescription>Review new submissions, edits, and deletions for expenses.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {pendingExpenses.length > 0 ? pendingExpenses.map(item => (
-                <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
-                  <div className="flex-1">
-                    <p className="font-bold text-xl">৳{item.amount.toFixed(2)}</p>
-                    <p className="font-medium">{item.description}</p>
-                    <p className="text-sm text-muted-foreground">Submitted by {item.addedBy} on {format(new Date(item.date), "PPP")}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item.id, 'reject', 'expense')} disabled={submitting[item.id]}>
-                      {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
-                      <span className="sr-only">Reject</span>
-                    </Button>
-                    <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item.id, 'approve', 'expense')} disabled={submitting[item.id]}>
-                      {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
-                      <span className="sr-only">Approve</span>
-                    </Button>
-                  </div>
-                </div>
-              )) : <p className="text-muted-foreground text-center py-8">No pending expenses to review.</p>}
+              {pendingExpenses.length > 0 
+                ? pendingExpenses.map(renderExpenseRequest) 
+                : <p className="text-muted-foreground text-center py-8">No pending expenses to review.</p>
+              }
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="deposits">
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">Pending Deposits</CardTitle>
-              <CardDescription>Review these deposit submissions. Approved amounts will be credited to the member's balance.</CardDescription>
+              <CardTitle className="font-headline">Pending Deposit Requests</CardTitle>
+              <CardDescription>Review new submissions, edits, and deletions for deposits.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-            {pendingDeposits.length > 0 ? pendingDeposits.map(item => (
-                <div key={item.id} className="flex flex-wrap items-center justify-between gap-4 rounded-lg border p-4">
-                  <div className="flex-1">
-                    <p className="font-bold text-xl">৳{item.amount.toFixed(2)}</p>
-                    <p className="text-sm text-muted-foreground">Submitted by {item.memberName} on {format(new Date(item.date), "PPP")}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="icon" className="border-red-500 text-red-500 hover:bg-red-500/10 hover:text-red-600" onClick={() => handleAction(item.id, 'reject', 'deposit')} disabled={submitting[item.id]}>
-                       {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
-                       <span className="sr-only">Reject</span>
-                    </Button>
-                    <Button variant="outline" size="icon" className="border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600" onClick={() => handleAction(item.id, 'approve', 'deposit')} disabled={submitting[item.id]}>
-                       {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <Check className="h-4 w-4" />}
-                       <span className="sr-only">Approve</span>
-                    </Button>
-                  </div>
-                </div>
-              )) : <p className="text-muted-foreground text-center py-8">No pending deposits to review.</p>}
+              {pendingDeposits.length > 0 
+                ? pendingDeposits.map(renderDepositRequest) 
+                : <p className="text-muted-foreground text-center py-8">No pending deposits to review.</p>
+              }
             </CardContent>
           </Card>
         </TabsContent>
