@@ -71,6 +71,17 @@ export default function LoginPage() {
     setLoading(true);
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        if (!userCredential.user.emailVerified) {
+            toast({
+                title: "Email Not Verified",
+                description: "Please verify your email before logging in. Check your inbox for a verification link.",
+                variant: "destructive",
+            });
+            await auth.signOut();
+            return;
+        }
+
         await upsertUser(userCredential.user);
         await handleSuccessfulLogin(userCredential.user.uid);
     } catch (error: any) {

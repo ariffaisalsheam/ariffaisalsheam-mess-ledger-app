@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
-import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { upsertUser } from "@/services/messService";
 import { Loader2 } from "lucide-react";
@@ -64,12 +64,20 @@ export default function SignupPage() {
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: fullName });
+        await sendEmailVerification(userCredential.user);
+
         // Re-read user to get updated profile
         const user = auth.currentUser;
         if (user) {
           await upsertUser(user);
         }
-        router.push("/welcome");
+        
+        toast({
+          title: "Account Created!",
+          description: "A verification email has been sent. Please check your inbox and verify your account before logging in.",
+        });
+
+        router.push("/login");
     } catch (error: any) {
         console.error("Error signing up with email: ", error);
         let description = "Could not create your account. Please try again.";
