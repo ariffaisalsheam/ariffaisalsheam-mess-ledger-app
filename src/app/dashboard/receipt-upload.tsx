@@ -43,6 +43,9 @@ export function ReceiptUpload({ onUploadComplete, userId }: ReceiptUploadProps) 
     setIsUploading(true);
 
     try {
+      if (!storage) {
+          throw new Error("Firebase Storage is not configured. Please check your environment variables.");
+      }
       console.log(`Original file size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
       const compressedFile = await imageCompression(file, options);
       console.log(`Compressed file size: ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB`);
@@ -61,7 +64,7 @@ export function ReceiptUpload({ onUploadComplete, userId }: ReceiptUploadProps) 
         },
         (error) => {
           console.error('Upload failed:', error);
-          toast({ title: 'Upload Failed', description: 'Could not upload the receipt image.', variant: 'destructive' });
+          toast({ title: 'Upload Failed', description: 'Could not upload the receipt image. Check storage rules in Firebase.', variant: 'destructive' });
           resetState();
         },
         async () => {
@@ -71,9 +74,9 @@ export function ReceiptUpload({ onUploadComplete, userId }: ReceiptUploadProps) 
           toast({ title: 'Upload Complete', description: 'Receipt image successfully attached.' });
         }
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Compression or upload error:', error);
-      toast({ title: 'Error', description: 'Could not process the image.', variant: 'destructive' });
+      toast({ title: 'Error', description: error.message || 'Could not process the image.', variant: 'destructive' });
       resetState();
     }
   };
@@ -101,6 +104,7 @@ export function ReceiptUpload({ onUploadComplete, userId }: ReceiptUploadProps) 
         disabled={isUploading}
       />
       <Button
+        type="button"
         variant="outline"
         onClick={() => fileInputRef.current?.click()}
         disabled={isUploading}

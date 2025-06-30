@@ -33,11 +33,13 @@ export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess 
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const [receiptUploadKey, setReceiptUploadKey] = useState(Date.now());
 
   const handleClearForm = () => {
     setAmount('');
     setDescription('');
     setReceiptUrl(null);
+    setReceiptUploadKey(Date.now()); // This will force ReceiptUpload to remount and reset
   }
 
   const handleSubmit = async () => {
@@ -115,7 +117,11 @@ export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess 
               Receipt
             </Label>
             <div className="col-span-3">
-              <ReceiptUpload onUploadComplete={setReceiptUrl} userId={userId} />
+              <ReceiptUpload 
+                key={receiptUploadKey}
+                onUploadComplete={setReceiptUrl} 
+                userId={userId} 
+              />
             </div>
           </div>
         </div>
