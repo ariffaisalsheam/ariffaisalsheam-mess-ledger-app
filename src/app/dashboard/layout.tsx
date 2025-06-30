@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import dynamic from 'next/dynamic';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,6 +61,12 @@ import {
 } from "@/services/messService";
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from "next-themes";
+
+const InstallPwaButton = dynamic(
+  () => import('@/components/install-pwa-button').then((mod) => mod.InstallPwaButton),
+  { ssr: false }
+);
+
 
 export default function DashboardLayout({
   children,
@@ -449,6 +456,7 @@ export default function DashboardLayout({
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Settings</span>
               </DropdownMenuItem>
+              <InstallPwaButton />
               <DropdownMenuItem onClick={() => setTheme(theme === "light" ? "dark" : "light")}>
                 {theme === "light" ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
                 <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
