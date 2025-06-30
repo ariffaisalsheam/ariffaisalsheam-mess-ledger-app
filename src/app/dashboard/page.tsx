@@ -103,10 +103,12 @@ export default function DashboardPage() {
   }
 
   const summary = mess?.summary;
-  const totalExpenses = summary?.totalExpenses ?? 0;
-  const totalDeposits = summary?.totalDeposits ?? 0;
-  const totalMessMeals = summary?.totalMeals ?? 0;
-  const mealRate = summary?.mealRate ?? 0;
+  const getNumber = (value: number | undefined | null) => (value && !isNaN(value) ? value : 0);
+
+  const totalExpenses = getNumber(summary?.totalExpenses);
+  const totalDeposits = getNumber(summary?.totalDeposits);
+  const totalMessMeals = getNumber(summary?.totalMeals);
+  const mealRate = getNumber(summary?.mealRate);
   
   const totalMessBalance = totalDeposits - totalExpenses;
   const balanceProgress = totalDeposits > 0 ? (totalMessBalance / totalDeposits) * 100 : 0;
@@ -186,7 +188,7 @@ export default function DashboardPage() {
                         <UtensilsCrossed className="h-5 w-5 text-primary mt-1 flex-shrink-0"/>
                         <div>
                             <p className="text-sm text-muted-foreground">Total Meals</p>
-                            <p className="text-lg font-bold">{totalMessMeals}</p>
+                            <p className="text-lg font-bold">{totalMessMeals.toFixed(1).replace(/\.0$/, '')}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
