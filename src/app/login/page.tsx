@@ -28,12 +28,6 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const InstallPwaPageButton = dynamic(
-  () => import('@/components/install-pwa-page-button').then((mod) => mod.InstallPwaPageButton),
-  { ssr: false }
-);
-
-
 // NEW: Declare recaptchaVerifier in the window interface for TypeScript
 declare global {
   interface Window {
@@ -319,7 +313,6 @@ export default function LoginPage() {
             <Link href="/signup" passHref>
               <Button variant="outline" className="w-full mt-2">Get started</Button>
             </Link>
-            <InstallPwaPageButton />
           </CardContent>
         </Card>
       </div>

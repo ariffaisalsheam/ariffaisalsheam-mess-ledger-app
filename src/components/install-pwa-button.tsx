@@ -1,12 +1,14 @@
+
 "use client";
 
 import { usePwaInstall } from "@/hooks/use-pwa-install";
-import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 export function InstallPwaButton() {
-  const { canInstall, promptInstall } = usePwaInstall();
+  const { canInstall } = usePwaInstall();
+  const router = useRouter();
 
   if (!canInstall) {
     return null;
@@ -14,7 +16,7 @@ export function InstallPwaButton() {
 
   const handleInstallClick = (e: React.MouseEvent) => {
     e.preventDefault();
-    promptInstall();
+    router.push('/dashboard/install');
   }
 
   // Render as a DropdownMenuItem to be used inside the user menu.

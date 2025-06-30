@@ -63,17 +63,8 @@ import {
 } from "@/services/messService";
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from "next-themes";
-
-const InstallPwaButton = dynamic(
-  () => import('@/components/install-pwa-button').then((mod) => mod.InstallPwaButton),
-  { ssr: false }
-);
-
-const InstallPwaNavButton = dynamic(
-  () => import('@/components/install-pwa-nav-button').then((mod) => mod.InstallPwaNavButton),
-  { ssr: false }
-);
-
+import { InstallPwaButton } from "@/components/install-pwa-button";
+import { InstallPwaNavButton } from "@/components/install-pwa-nav-button";
 
 export default function DashboardLayout({
   children,
@@ -139,7 +130,7 @@ export default function DashboardLayout({
 
                 } else {
                     // Allow access to settings page even without a mess
-                    if (pathname !== '/dashboard/settings') {
+                    if (pathname !== '/dashboard/settings' && pathname !== '/dashboard/install') {
                         router.push('/welcome');
                     } else {
                         setMessName("No Mess");
@@ -180,6 +171,7 @@ export default function DashboardLayout({
             case 'reports': title = 'Monthly Reports'; break;
             case 'settings': title = 'Settings'; break;
             case 'review': title = 'Review Queue'; break;
+            case 'install': title = 'Install App'; break;
             default: title = 'Dashboard';
         }
     }
