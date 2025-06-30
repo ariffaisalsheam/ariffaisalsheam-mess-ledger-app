@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Calendar as CalendarIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { logGuestMeal } from '@/services/messService';
+import { logGuestMeal, type MealSettings } from '@/services/messService';
 import { format } from 'date-fns';
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,9 +28,10 @@ interface LogGuestMealDialogProps {
   messId: string;
   userId: string;
   onSuccess: () => void;
+  mealSettings: MealSettings | null;
 }
 
-export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSuccess }: LogGuestMealDialogProps) {
+export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, mealSettings, onSuccess }: LogGuestMealDialogProps) {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [meals, setMeals] = useState({ breakfast: 0, lunch: 0, dinner: 0 });
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +64,13 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
         return;
     }
 
-    const totalMeals = meals.breakfast + meals.lunch + meals.dinner;
+    const payload = {
+      breakfast: mealSettings?.isBreakfastOn ? meals.breakfast : 0,
+      lunch: mealSettings?.isLunchOn ? meals.lunch : 0,
+      dinner: mealSettings?.isDinnerOn ? meals.dinner : 0,
+    };
+
+    const totalMeals = payload.breakfast + payload.lunch + payload.dinner;
     if (totalMeals <= 0) {
         toast({ title: "No Meals Entered", description: "Please enter at least one guest meal.", variant: "destructive" });
         return;
@@ -71,7 +79,7 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
     setSubmitting(true);
     const dateStr = format(date, "yyyy-MM-dd");
     try {
-      await logGuestMeal(messId, userId, dateStr, meals);
+      await logGuestMeal(messId, userId, dateStr, payload);
       toast({
         title: "Success!",
         description: `Guest meals have been logged and added to your account.`,
@@ -89,6 +97,8 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
       setSubmitting(false);
     }
   };
+  
+  const anyMealOn = mealSettings?.isBreakfastOn || mealSettings?.isLunchOn || mealSettings?.isDinnerOn;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -127,24 +137,34 @@ export function LogGuestMealDialog({ isOpen, setIsOpen, messId, userId, onSucces
               </Popover>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="breakfast" className="text-center">Breakfast</Label>
-                <Input id="breakfast" type="number" step="0.5" min="0" value={meals.breakfast} onChange={e => handleMealChange('breakfast', e.target.value)} className="text-center" />
+            {anyMealOn ? (
+              <div className="grid grid-cols-3 gap-4">
+                {mealSettings?.isBreakfastOn && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="breakfast" className="text-center">Breakfast</Label>
+                    <Input id="breakfast" type="number" step="0.5" min="0" value={meals.breakfast} onChange={e => handleMealChange('breakfast', e.target.value)} className="text-center" />
+                  </div>
+                )}
+                {mealSettings?.isLunchOn && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="lunch" className="text-center">Lunch</Label>
+                    <Input id="lunch" type="number" step="0.5" min="0" value={meals.lunch} onChange={e => handleMealChange('lunch', e.target.value)} className="text-center" />
+                  </div>
+                )}
+                {mealSettings?.isDinnerOn && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="dinner" className="text-center">Dinner</Label>
+                    <Input id="dinner" type="number" step="0.5" min="0" value={meals.dinner} onChange={e => handleMealChange('dinner', e.target.value)} className="text-center" />
+                  </div>
+                )}
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="lunch" className="text-center">Lunch</Label>
-                <Input id="lunch" type="number" step="0.5" min="0" value={meals.lunch} onChange={e => handleMealChange('lunch', e.target.value)} className="text-center" />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="dinner" className="text-center">Dinner</Label>
-                <Input id="dinner" type="number" step="0.5" min="0" value={meals.dinner} onChange={e => handleMealChange('dinner', e.target.value)} className="text-center" />
-              </div>
-            </div>
+            ) : (
+                <p className="text-center text-sm text-muted-foreground pt-4">All meals are currently disabled by the manager.</p>
+            )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-          <Button type="submit" onClick={handleSubmit} disabled={submitting}>
+          <Button type="submit" onClick={handleSubmit} disabled={submitting || !anyMealOn}>
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Log Meals
           </Button>

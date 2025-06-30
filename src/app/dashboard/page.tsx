@@ -135,6 +135,7 @@ export default function DashboardPage() {
                 messId={userProfile.messId}
                 userId={user.uid}
                 onSuccess={handleSuccess}
+                mealSettings={mess?.mealSettings || null}
             />
              <Popover open={isFabOpen} onOpenChange={setFabOpen}>
                 <PopoverTrigger asChild>
