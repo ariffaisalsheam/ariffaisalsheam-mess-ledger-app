@@ -493,7 +493,7 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
             name: data.name || "Unnamed Member",
             role: data.role,
             balance: data.balance ?? 0,
-            meals: data.meals ?? 0,
+            meals: data.meals?.toFixed(1).replace(/\.0$/, '') ?? 0,
             avatar: profile?.photoURL || 'https://placehold.co/40x40.png',
         };
     });
@@ -1238,50 +1238,68 @@ export const ensureDailyMealDocs = async (messId: string) => {
     const mess = await getMessById(messId);
     
     await runTransaction(db, async (transaction) => {
-        for (const memberDoc of membersSnap.docs) {
-            const memberId = memberDoc.id;
-            const memberRef = doc(db, 'messes', messId, 'members', memberId);
+        // --- 1. READ PHASE ---
+        const membersToUpdate = [];
+
+        for (const member of membersSnap.docs) {
+            const memberId = member.id;
             const mealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', todayStr);
             const todayMealDoc = await transaction.get(mealDocRef);
 
             if (!todayMealDoc.exists()) {
+                const memberRef = doc(db, 'messes', messId, 'members', memberId);
                 const yesterdayMealDocRef = doc(db, 'messes', messId, 'members', memberId, 'meals', yesterdayStr);
+                
+                const memberDoc = await transaction.get(memberRef);
                 const yesterdayMealDoc = await transaction.get(yesterdayMealDocRef);
-                
-                let defaultStatus: MealStatus;
 
-                if (yesterdayMealDoc.exists()) {
-                    const yesterdayData = yesterdayMealDoc.data() as MealStatus;
-                    defaultStatus = {
-                        breakfast: yesterdayData.breakfast ?? (mess?.mealSettings?.isBreakfastOn ? 1 : 0),
-                        lunch: yesterdayData.lunch ?? (mess?.mealSettings?.isLunchOn ? 1 : 0),
-                        dinner: yesterdayData.dinner ?? (mess?.mealSettings?.isDinnerOn ? 1 : 0),
-                        isSetByUser: false, 
-                        guestBreakfast: 0, // Guest meals do not carry over
-                        guestLunch: 0,
-                        guestDinner: 0,
-                    };
-                } else {
-                    defaultStatus = {
-                        breakfast: mess?.mealSettings?.isBreakfastOn ? 1 : 0,
-                        lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
-                        dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
-                        isSetByUser: false,
-                        guestBreakfast: 0,
-                        guestLunch: 0,
-                        guestDinner: 0,
-                    };
+                if (memberDoc.exists()) {
+                    membersToUpdate.push({
+                        memberRef,
+                        mealDocRef,
+                        memberData: memberDoc.data(),
+                        yesterdayMealData: yesterdayMealDoc.exists() ? yesterdayMealDoc.data() : null,
+                    });
                 }
+            }
+        }
 
-                const mealTotal = (defaultStatus.breakfast || 0) + (defaultStatus.lunch || 0) + (defaultStatus.dinner || 0);
+        // --- 2. WRITE PHASE ---
+        for (const update of membersToUpdate) {
+            const { memberRef, mealDocRef, memberData, yesterdayMealData } = update;
 
-                transaction.set(mealDocRef, defaultStatus);
-                
-                if (mealTotal > 0) {
-                    const memberData = memberDoc.data();
-                    const currentMeals = memberData.meals || 0;
-                    transaction.update(memberRef, { meals: currentMeals + mealTotal });
-                }
+            let defaultStatus: MealStatus;
+            
+            if (yesterdayMealData) {
+                const data = yesterdayMealData as MealStatus;
+                defaultStatus = {
+                    breakfast: data.breakfast ?? (mess?.mealSettings?.isBreakfastOn ? 1 : 0),
+                    lunch: data.lunch ?? (mess?.mealSettings?.isLunchOn ? 1 : 0),
+                    dinner: data.dinner ?? (mess?.mealSettings?.isDinnerOn ? 1 : 0),
+                    isSetByUser: false, 
+                    guestBreakfast: 0,
+                    guestLunch: 0,
+                    guestDinner: 0,
+                };
+            } else {
+                defaultStatus = {
+                    breakfast: mess?.mealSettings?.isBreakfastOn ? 1 : 0,
+                    lunch: mess?.mealSettings?.isLunchOn ? 1 : 0,
+                    dinner: mess?.mealSettings?.isDinnerOn ? 1 : 0,
+                    isSetByUser: false,
+                    guestBreakfast: 0,
+                    guestLunch: 0,
+                    guestDinner: 0,
+                };
+            }
+
+            const mealTotal = (defaultStatus.breakfast || 0) + (defaultStatus.lunch || 0) + (defaultStatus.dinner || 0);
+
+            transaction.set(mealDocRef, defaultStatus);
+            
+            if (mealTotal > 0) {
+                const currentMeals = memberData.meals || 0;
+                transaction.update(memberRef, { meals: currentMeals + mealTotal });
             }
         }
     });
