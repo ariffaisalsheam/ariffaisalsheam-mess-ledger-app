@@ -281,7 +281,12 @@ export default function MealsPage() {
     const key = `${selectedRecord.memberId}-${selectedRecord.date}`;
     setSubmitting(prev => ({ ...prev, [key]: true }));
     try {
-        await updateMealForDate(userProfile.messId, selectedRecord.memberId, selectedRecord.date, { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: true });
+        const clearedMeals: Partial<MealStatus> = {
+            breakfast: 0, lunch: 0, dinner: 0,
+            guestBreakfast: 0, guestLunch: 0, guestDinner: 0,
+            isSetByUser: true
+        };
+        await updateMealForDate(userProfile.messId, selectedRecord.memberId, selectedRecord.date, clearedMeals);
         toast({ title: 'Success', description: 'Meal record has been cleared.' });
         fetchHistoryData();
     } catch (error) {
