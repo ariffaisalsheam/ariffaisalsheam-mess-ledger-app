@@ -388,9 +388,9 @@ export default function MealsPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Member</TableHead>
-                                        <TableHead className="text-center">Breakfast (Guest)</TableHead>
-                                        <TableHead className="text-center">Lunch (Guest)</TableHead>
-                                        <TableHead className="text-center">Dinner (Guest)</TableHead>
+                                        {mealSettings?.isBreakfastOn && <TableHead className="text-center">Breakfast (Guest)</TableHead>}
+                                        {mealSettings?.isLunchOn && <TableHead className="text-center">Lunch (Guest)</TableHead>}
+                                        {mealSettings?.isDinnerOn && <TableHead className="text-center">Dinner (Guest)</TableHead>}
                                         {userProfile?.role === 'manager' && <TableHead className="text-right">Actions</TableHead>}
                                     </TableRow>
                                 </TableHeader>
@@ -398,15 +398,15 @@ export default function MealsPage() {
                                     {entries.map(entry => (
                                         <TableRow key={entry.memberId}>
                                             <TableCell className="font-medium">{entry.memberName}</TableCell>
-                                            <TableCell className="text-center font-mono">
+                                            {mealSettings?.isBreakfastOn && <TableCell className="text-center font-mono">
                                                 <MealCell personal={entry.breakfast} guest={entry.guestBreakfast} isSet={entry.isSetByUser} />
-                                            </TableCell>
-                                            <TableCell className="text-center font-mono">
+                                            </TableCell>}
+                                            {mealSettings?.isLunchOn && <TableCell className="text-center font-mono">
                                                 <MealCell personal={entry.lunch} guest={entry.guestLunch} isSet={entry.isSetByUser} />
-                                            </TableCell>
-                                            <TableCell className="text-center font-mono">
+                                            </TableCell>}
+                                            {mealSettings?.isDinnerOn && <TableCell className="text-center font-mono">
                                                 <MealCell personal={entry.dinner} guest={entry.guestDinner} isSet={entry.isSetByUser} />
-                                            </TableCell>
+                                            </TableCell>}
                                             {userProfile?.role === 'manager' && (
                                                 <TableCell className="text-right">
                                                     <Button variant="ghost" size="icon" onClick={() => handleEdit(entry)} disabled={submitting[`${entry.memberId}-${entry.date}`]}>
@@ -442,6 +442,7 @@ export default function MealsPage() {
             memberId={selectedRecord.memberId}
             memberName={selectedRecord.memberName}
             initialDate={selectedRecord.date}
+            mealSettings={mealSettings}
             onSuccess={fetchHistoryData}
         />
       )}

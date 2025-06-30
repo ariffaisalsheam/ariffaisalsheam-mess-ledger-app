@@ -17,7 +17,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { updateMealForDate, getMealStatusForDate, type MealStatus } from '@/services/messService';
+import { updateMealForDate, getMealStatusForDate, type MealStatus, type MealSettings } from '@/services/messService';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -28,10 +28,11 @@ interface AddMealRecordDialogProps {
   memberId: string;
   memberName: string;
   onSuccess: () => void;
-  initialDate?: string; // e.g., "2024-06-30"
+  initialDate?: string;
+  mealSettings: MealSettings | null;
 }
 
-export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, memberName, onSuccess, initialDate }: AddMealRecordDialogProps) {
+export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, memberName, onSuccess, initialDate, mealSettings }: AddMealRecordDialogProps) {
   const [date, setDate] = useState<Date | undefined>();
   const [meals, setMeals] = useState<MealStatus>({ breakfast: 0, lunch: 0, dinner: 0, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 });
   const [submitting, setSubmitting] = useState(false);
@@ -93,6 +94,8 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
       setSubmitting(false);
     }
   };
+  
+  const anyMealOn = mealSettings?.isBreakfastOn || mealSettings?.isLunchOn || mealSettings?.isDinnerOn;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -103,6 +106,7 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
             Manually set meal counts for {memberName} on a specific date.
           </DialogDescription>
         </DialogHeader>
+        {anyMealOn ? (
         <div className="grid gap-6 py-4">
             <div className="grid gap-2">
               <Label htmlFor="meal-date">Date</Label>
@@ -135,42 +139,45 @@ export function AddMealRecordDialog({ isOpen, setIsOpen, messId, memberId, membe
             <div className="grid gap-2">
                 <Label>Personal Meals</Label>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="grid gap-2">
+                  {mealSettings?.isBreakfastOn && <div className="grid gap-2">
                     <Label htmlFor="breakfast" className="text-center">Breakfast</Label>
                     <Input id="breakfast" type="number" step="0.5" min="0" value={meals.breakfast || ''} onChange={e => handleMealChange('breakfast', e.target.value)} className="text-center" />
-                  </div>
-                  <div className="grid gap-2">
+                  </div>}
+                  {mealSettings?.isLunchOn && <div className="grid gap-2">
                     <Label htmlFor="lunch" className="text-center">Lunch</Label>
                     <Input id="lunch" type="number" step="0.5" min="0" value={meals.lunch || ''} onChange={e => handleMealChange('lunch', e.target.value)} className="text-center" />
-                  </div>
-                  <div className="grid gap-2">
+                  </div>}
+                  {mealSettings?.isDinnerOn && <div className="grid gap-2">
                     <Label htmlFor="dinner" className="text-center">Dinner</Label>
                     <Input id="dinner" type="number" step="0.5" min="0" value={meals.dinner || ''} onChange={e => handleMealChange('dinner', e.target.value)} className="text-center" />
-                  </div>
+                  </div>}
                 </div>
             </div>
 
              <div className="grid gap-2">
                 <Label>Guest Meals</Label>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="grid gap-2">
+                  {mealSettings?.isBreakfastOn && <div className="grid gap-2">
                     <Label htmlFor="guest-breakfast" className="text-center">Breakfast</Label>
                     <Input id="guest-breakfast" type="number" step="0.5" min="0" value={meals.guestBreakfast || ''} onChange={e => handleMealChange('guestBreakfast', e.target.value)} className="text-center" />
-                  </div>
-                  <div className="grid gap-2">
+                  </div>}
+                  {mealSettings?.isLunchOn && <div className="grid gap-2">
                     <Label htmlFor="guest-lunch" className="text-center">Lunch</Label>
                     <Input id="guest-lunch" type="number" step="0.5" min="0" value={meals.guestLunch || ''} onChange={e => handleMealChange('guestLunch', e.target.value)} className="text-center" />
-                  </div>
-                  <div className="grid gap-2">
+                  </div>}
+                  {mealSettings?.isDinnerOn && <div className="grid gap-2">
                     <Label htmlFor="guest-dinner" className="text-center">Dinner</Label>
                     <Input id="guest-dinner" type="number" step="0.5" min="0" value={meals.guestDinner || ''} onChange={e => handleMealChange('guestDinner', e.target.value)} className="text-center" />
-                  </div>
+                  </div>}
                 </div>
             </div>
         </div>
+        ) : (
+             <p className="text-center text-sm text-muted-foreground py-8">All meals are currently disabled by the manager.</p>
+        )}
         <DialogFooter>
           <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-          <Button type="submit" onClick={handleSubmit} disabled={submitting || loadingDate}>
+          <Button type="submit" onClick={handleSubmit} disabled={submitting || loadingDate || !anyMealOn}>
             {(submitting || loadingDate) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Record
           </Button>

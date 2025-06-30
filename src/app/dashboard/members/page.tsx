@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { UserPlus, Loader2 } from "lucide-react";
 import { MemberList } from './member-list';
-import { getMembersOfMess, getUserProfile, getMessById, type Member, type UserProfile } from '@/services/messService';
+import { getMembersOfMess, getUserProfile, getMessById, type Member, type UserProfile, type Mess } from '@/services/messService';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -14,16 +14,10 @@ import { AddMealRecordDialog } from './add-meal-record-dialog';
 import { TransactionHistoryDialog } from './transaction-history-dialog';
 import { MealLedgerDialog } from './meal-ledger-dialog';
 
-interface MessData {
-    id: string;
-    name: string;
-    inviteCode?: string;
-}
-
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [messData, setMessData] = useState<MessData | null>(null);
+  const [messData, setMessData] = useState<Mess | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -64,9 +58,7 @@ export default function MembersPage() {
           getMessById(profile.messId)
         ]).then(([fetchedMembers, fetchedMessData]) => {
           setMembers(fetchedMembers);
-          if (fetchedMessData) {
-            setMessData(fetchedMessData as MessData);
-          }
+          setMessData(fetchedMessData);
         }).catch(err => {
             console.error("Failed to load members page data", err);
         }).finally(() => {
@@ -138,6 +130,7 @@ export default function MembersPage() {
                 memberId={selectedMember.id}
                 memberName={selectedMember.name}
                 onSuccess={fetchData}
+                mealSettings={messData?.mealSettings ?? null}
             />
             <TransactionHistoryDialog
                 isOpen={isTransactionHistoryOpen}

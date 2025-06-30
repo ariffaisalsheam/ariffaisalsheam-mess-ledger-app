@@ -16,10 +16,12 @@ import {
     getMembersOfMess, 
     getMealLedgerForUser,
     updateMealForDate,
+    getMessById,
     type UserProfile,
     type Member,
     type MealLedgerEntry,
-    type MealStatus
+    type MealStatus,
+    type MealSettings
 } from '@/services/messService';
 import { format, parseISO } from 'date-fns';
 import {
@@ -53,6 +55,7 @@ const MealCell = ({ personal, guest }: { personal?: number; guest?: number }) =>
 
 export default function LedgerPage() {
     const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+    const [mealSettings, setMealSettings] = useState<MealSettings | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
     const [selectedMemberId, setSelectedMemberId] = useState<string>('');
     const [ledger, setLedger] = useState<MealLedgerEntry[]>([]);
@@ -73,6 +76,7 @@ export default function LedgerPage() {
                 getUserProfile(currentUser.uid).then(profile => {
                     setUserProfile(profile);
                     if (profile?.messId) {
+                        getMessById(profile.messId).then(mess => setMealSettings(mess?.mealSettings ?? null));
                         getMembersOfMess(profile.messId)
                             .then(setMembers)
                             .catch(err => {
@@ -143,6 +147,7 @@ export default function LedgerPage() {
 
     const selectedMemberName = members.find(m => m.id === selectedMemberId)?.name || '';
     const isManager = userProfile?.role === 'manager';
+    const activeMealCount = (mealSettings?.isBreakfastOn ? 1:0) + (mealSettings?.isLunchOn ? 1:0) + (mealSettings?.isDinnerOn ? 1:0);
 
     if (loading) {
         return <div className="flex h-full w-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -190,9 +195,9 @@ export default function LedgerPage() {
                                     <TableHeader className="sticky top-0 bg-card">
                                         <TableRow>
                                             <TableHead>Date</TableHead>
-                                            <TableHead className="text-center">Breakfast (Guest)</TableHead>
-                                            <TableHead className="text-center">Lunch (Guest)</TableHead>
-                                            <TableHead className="text-center">Dinner (Guest)</TableHead>
+                                            {mealSettings?.isBreakfastOn && <TableHead className="text-center">Breakfast (Guest)</TableHead>}
+                                            {mealSettings?.isLunchOn && <TableHead className="text-center">Lunch (Guest)</TableHead>}
+                                            {mealSettings?.isDinnerOn && <TableHead className="text-center">Dinner (Guest)</TableHead>}
                                             <TableHead className="text-center">Total</TableHead>
                                             {isManager && <TableHead className="text-right">Actions</TableHead>}
                                         </TableRow>
@@ -203,9 +208,9 @@ export default function LedgerPage() {
                                             return (
                                                 <TableRow key={entry.date}>
                                                     <TableCell className="font-medium">{format(parseISO(entry.date), 'EEEE, MMM d')}</TableCell>
-                                                    <TableCell className="text-center font-mono"><MealCell personal={entry.breakfast} guest={entry.guestBreakfast} /></TableCell>
-                                                    <TableCell className="text-center font-mono"><MealCell personal={entry.lunch} guest={entry.guestLunch} /></TableCell>
-                                                    <TableCell className="text-center font-mono"><MealCell personal={entry.dinner} guest={entry.guestDinner} /></TableCell>
+                                                    {mealSettings?.isBreakfastOn && <TableCell className="text-center font-mono"><MealCell personal={entry.breakfast} guest={entry.guestBreakfast} /></TableCell>}
+                                                    {mealSettings?.isLunchOn && <TableCell className="text-center font-mono"><MealCell personal={entry.lunch} guest={entry.guestLunch} /></TableCell>}
+                                                    {mealSettings?.isDinnerOn && <TableCell className="text-center font-mono"><MealCell personal={entry.dinner} guest={entry.guestDinner} /></TableCell>}
                                                     <TableCell className="text-center font-bold font-mono">{totalMeals.toFixed(1).replace(/\.0$/, '')}</TableCell>
                                                      {isManager && (
                                                         <TableCell className="text-right">
@@ -221,7 +226,7 @@ export default function LedgerPage() {
                                             )
                                         }) : (
                                             <TableRow>
-                                                <TableCell colSpan={isManager ? 6 : 5} className="text-center text-muted-foreground h-24">No meal records found for this member in the last 30 days.</TableCell>
+                                                <TableCell colSpan={2 + activeMealCount + (isManager ? 1 : 0)} className="text-center text-muted-foreground h-24">No meal records found for this member in the last 30 days.</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -243,6 +248,7 @@ export default function LedgerPage() {
                     memberId={selectedMemberId}
                     memberName={selectedMemberName}
                     initialDate={selectedEntry.date}
+                    mealSettings={mealSettings}
                     onSuccess={fetchLedgerData}
                 />
             )}
