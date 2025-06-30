@@ -1216,30 +1216,32 @@ export const ensureDailyMealDocs = async (messId: string) => {
 
     const todayStr = new Date().toISOString().split('T')[0];
     
+    // Get member references OUTSIDE the transaction, as queries are not allowed inside.
+    const membersRef = collection(db, 'messes', messId, 'members');
+    const membersQuerySnap = await getFirestoreDocs(query(membersRef));
+    const memberDocs = membersQuerySnap.docs;
+
+    if (memberDocs.length === 0) {
+        return; // No members to process, exit early.
+    }
+
     await runTransaction(db, async (transaction) => {
         const messRef = doc(db, 'messes', messId);
-        const membersRef = collection(db, 'messes', messId, 'members');
         
         const messDoc = await transaction.get(messRef);
         
         if(!messDoc.exists()) throw new Error("Mess not found");
         
         const messData = messDoc.data() as Mess;
-        const messSummary = messData.summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0 };
 
-        const membersSnap = await transaction.get(query(membersRef));
-        
-        const mealDocReads: Promise<any>[] = [];
-        membersSnap.docs.forEach(memberDocSnap => {
-            const mealDocRef = doc(db, 'messes', messId, 'members', memberDocSnap.id, 'meals', todayStr);
-            mealDocReads.push(transaction.get(mealDocRef));
-        });
-        const mealDocs = await Promise.all(mealDocReads);
+        // Read meal docs for each member INSIDE the transaction using their specific refs.
+        const mealDocRefs = memberDocs.map(memberDoc => doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr));
+        const mealDocsSnaps = await Promise.all(mealDocRefs.map(ref => transaction.get(ref)));
 
         let totalDefaultMealsAdded = 0;
 
-        membersSnap.docs.forEach((memberDocSnap, index) => {
-            const mealDoc = mealDocs[index];
+        memberDocs.forEach((memberDocSnap, index) => {
+            const mealDoc = mealDocsSnaps[index];
             if (!mealDoc.exists()) {
                 const defaultStatus: MealStatus = {
                     breakfast: messData?.mealSettings?.isBreakfastOn ? 1 : 0,
@@ -1253,12 +1255,13 @@ export const ensureDailyMealDocs = async (messId: string) => {
                 const mealTotal = (defaultStatus.breakfast || 0) + (defaultStatus.lunch || 0) + (defaultStatus.dinner || 0);
                 
                 if (mealTotal > 0) {
+                    // Use the reference from the snapshot we fetched before the transaction
                     transaction.update(memberDocSnap.ref, { meals: increment(mealTotal) });
                     totalDefaultMealsAdded += mealTotal;
                 }
                 
-                const mealDocRef = doc(db, 'messes', messId, 'members', memberDocSnap.id, 'meals', todayStr);
-                transaction.set(mealDocRef, defaultStatus);
+                // Use the ref we created for the read
+                transaction.set(mealDocRefs[index], defaultStatus);
             }
         });
 
@@ -1518,5 +1521,3 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
 
     return finalReport;
 };
-
-    
