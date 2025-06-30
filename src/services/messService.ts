@@ -900,9 +900,14 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
 export const approveDeposit = async (messId: string, pendingDeposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
     const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
-    const type = pendingDeposit.type || 'new';
 
     await runTransaction(db, async (transaction) => {
+        const pendingDepositSnap = await transaction.get(pendingDepositRef);
+        if (!pendingDepositSnap.exists()) {
+             console.log("Pending deposit does not exist, likely already processed.");
+             return;
+        }
+
         const type = pendingDeposit.type || 'new';
 
         if (type === 'new') {
@@ -912,7 +917,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
             if (!memberDoc.exists()) throw `Member with ID ${pendingDeposit.userId} not found.`;
             
             const newDepositRef = doc(collection(db!, 'messes', messId, 'deposits'));
-            const { id, type, originalId, originalAmount, status, ...finalDepositData } = pendingDeposit;
+            const { id, status, ...finalDepositData } = pendingDeposit;
 
             transaction.set(newDepositRef, { ...finalDepositData, date: new Date(pendingDeposit.date), status: 'approved', approvedAt: serverTimestamp() });
             transaction.update(memberRef, { balance: increment(pendingDeposit.amount) });
@@ -976,6 +981,12 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
     const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', pendingExpense.id);
     
     await runTransaction(db, async (transaction) => {
+        const pendingExpenseSnap = await transaction.get(pendingExpenseRef);
+        if (!pendingExpenseSnap.exists()) {
+            console.log("Pending expense does not exist, likely already processed.");
+            return;
+        }
+
         const type = pendingExpense.type || 'new';
         const messRef = doc(db, 'messes', messId);
         const messDoc = await transaction.get(messRef);
@@ -987,7 +998,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
 
             const newExpenseRef = doc(collection(db!, 'messes', messId, 'expenses'));
-            const { id, type, originalId, originalData, status, ...finalExpenseData } = pendingExpense;
+            const { id, status, ...finalExpenseData } = pendingExpense;
 
             transaction.set(newExpenseRef, { ...finalExpenseData, date: new Date(pendingExpense.date), status: 'approved', approvedAt: serverTimestamp() });
             transaction.update(messRef, {
@@ -1281,11 +1292,11 @@ export const ensureDailyMealDocs = async (messId: string) => {
         const messDoc = await transaction.get(messRef);
         if(!messDoc.exists()) throw new Error("Mess not found");
 
-        const membersSnap = await getFirestoreDocs(membersRef); // This is outside transaction, but acceptable for this use case.
+        const membersSnap = await getFirestoreDocs(membersRef);
         const membersToUpdate: {ref: any, defaultMealTotal: number}[] = [];
         const mealDocRefsToCreate: {ref: any, status: MealStatus}[] = [];
 
-        // --- 1. READ PHASE (inside transaction) ---
+        // --- 1. READ PHASE ---
         for (const memberDocSnap of membersSnap.docs) {
             const mealDocRef = doc(db, 'messes', messId, 'members', memberDocSnap.id, 'meals', todayStr);
             const mealDoc = await transaction.get(mealDocRef);
@@ -1308,7 +1319,8 @@ export const ensureDailyMealDocs = async (messId: string) => {
         if(membersToUpdate.length === 0) return;
 
         // --- 2. WRITE PHASE ---
-        const messSummary = (messDoc.data() as Mess).summary;
+        const messData = messDoc.data() as Mess;
+        const messSummary = messData.summary || { totalMeals: 0, totalExpenses: 0, totalDeposits: 0, mealRate: 0 };
         let totalDefaultMealsAdded = 0;
 
         membersToUpdate.forEach(update => {
@@ -1325,10 +1337,14 @@ export const ensureDailyMealDocs = async (messId: string) => {
         // Update mess summary
         const newTotalMeals = messSummary.totalMeals + totalDefaultMealsAdded;
         const newMealRate = newTotalMeals > 0 ? messSummary.totalExpenses / newTotalMeals : 0;
-        transaction.update(messRef, {
-            'summary.totalMeals': newTotalMeals,
-            'summary.mealRate': newMealRate,
-        });
+        
+        transaction.set(messRef, {
+            summary: {
+                ...messSummary,
+                totalMeals: newTotalMeals,
+                mealRate: newMealRate,
+            }
+        }, { merge: true });
     });
 };
 
@@ -1579,4 +1595,3 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
 
     return finalReport;
 };
-
