@@ -38,6 +38,7 @@ import {
   CheckCheck,
   Moon,
   Sun,
+  Download,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,11 @@ import { useTheme } from "next-themes";
 
 const InstallPwaButton = dynamic(
   () => import('@/components/install-pwa-button').then((mod) => mod.InstallPwaButton),
+  { ssr: false }
+);
+
+const InstallPwaNavButton = dynamic(
+  () => import('@/components/install-pwa-nav-button').then((mod) => mod.InstallPwaNavButton),
   { ssr: false }
 );
 
@@ -209,7 +215,6 @@ export default function DashboardLayout({
     { href: "/dashboard/ledger", icon: <BookOpen className="h-5 w-5" />, label: "Meal Ledger" },
     { href: "/dashboard/transactions", icon: <Receipt className="h-5 w-5" />, label: "Transactions" },
     { href: "/dashboard/reports", icon: <ClipboardList className="h-5 w-5" />, label: "Reports" },
-    { href: "/dashboard/settings", icon: <Settings className="h-5 w-5" />, label: "Settings" },
   ];
 
   const managerNavItems = [
@@ -277,6 +282,9 @@ export default function DashboardLayout({
                   {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
                 </NavLink>
               ))}
+              <Separator className="my-2" />
+              <InstallPwaNavButton />
+              <NavLink href="/dashboard/settings"><Settings className="h-5 w-5" /> Settings</NavLink>
             </nav>
           </div>
           <div className="mt-auto p-4 space-y-4 border-t">
@@ -336,6 +344,9 @@ export default function DashboardLayout({
                           {item.badge > 0 && <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">{item.badge}</Badge>}
                       </NavLink>
                   ))}
+                  <Separator className="my-2" />
+                  <InstallPwaNavButton />
+                  <NavLink href="/dashboard/settings" className="py-3 text-base"><Settings className="h-5 w-5" /> Settings</NavLink>
                 </nav>
               </div>
               <div className="mt-auto p-4 space-y-4 border-t">

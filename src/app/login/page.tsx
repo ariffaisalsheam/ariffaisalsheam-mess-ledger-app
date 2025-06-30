@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -26,6 +27,12 @@ import { upsertUser, getUserProfile } from "@/services/messService";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+const InstallPwaPageButton = dynamic(
+  () => import('@/components/install-pwa-page-button').then((mod) => mod.InstallPwaPageButton),
+  { ssr: false }
+);
+
 
 // NEW: Declare recaptchaVerifier in the window interface for TypeScript
 declare global {
@@ -312,6 +319,7 @@ export default function LoginPage() {
             <Link href="/signup" passHref>
               <Button variant="outline" className="w-full mt-2">Get started</Button>
             </Link>
+            <InstallPwaPageButton />
           </CardContent>
         </Card>
       </div>
