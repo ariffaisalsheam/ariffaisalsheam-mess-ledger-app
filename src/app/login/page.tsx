@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -11,24 +11,75 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/logo";
 import { auth } from "@/lib/firebase";
-import { GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  sendPasswordResetEmail,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  type ConfirmationResult,
+  type User as FirebaseUser
+} from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { upsertUser, getUserProfile } from "@/services/messService";
 import { Loader2, Eye, EyeOff } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// NEW: Declare recaptchaVerifier in the window interface for TypeScript
+declare global {
+  interface Window {
+    recaptchaVerifier?: RecaptchaVerifier;
+    confirmationResult?: ConfirmationResult;
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+
+  // MODIFIED: State management consolidated
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showCodeInput, setShowCodeInput] = useState(false);
+  
   const [isForgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleSuccessfulLogin = async (uid: string) => {
-    const profile = await getUserProfile(uid);
+
+  // NEW: Setup reCAPTCHA verifier
+  useEffect(() => {
+    if (!auth) return;
+    // This effect runs once to set up the invisible reCAPTCHA.
+    const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': (response: any) => {
+        // reCAPTCHA solved, allow signInWithPhoneNumber.
+        // This callback is primarily for 'visible' reCAPTCHA. With 'invisible',
+        // the solving process is automatic.
+      }
+    });
+    window.recaptchaVerifier = verifier;
+
+    // Cleanup when component unmounts
+    return () => {
+        verifier.clear();
+    };
+
+  }, []);
+
+  const handleSuccessfulLogin = async (user: FirebaseUser) => {
+    await upsertUser(user);
+    const profile = await getUserProfile(user.uid);
     if (profile?.messId) {
       router.push("/dashboard");
     } else {
@@ -37,28 +88,15 @@ export default function LoginPage() {
   };
 
   const handleGoogleSignIn = async () => {
-    if (!auth) {
-      toast({
-        title: "Configuration Error",
-        description: "Firebase is not configured correctly. Please contact support.",
-        variant: "destructive",
-      });
-      console.error("Firebase auth is not initialized. Check your .env.local file.");
-      return;
-    }
+    if (!auth) return handleError("Firebase is not configured correctly.");
     setLoading(true);
+    setError(null);
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      await upsertUser(result.user);
-      await handleSuccessfulLogin(result.user.uid);
-    } catch (error) {
-      console.error("Error signing in with Google: ", error);
-      toast({
-        title: "Sign-in Failed",
-        description: "Could not sign you in with Google. Please try again.",
-        variant: "destructive",
-      });
+      await handleSuccessfulLogin(result.user);
+    } catch (error: any) {
+      handleError("Could not sign you in with Google. Please try again.");
     } finally {
         setLoading(false);
     }
@@ -66,58 +104,80 @@ export default function LoginPage() {
 
   const handleEmailSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) {
-      toast({ title: "Configuration Error", description: "Firebase is not configured correctly.", variant: "destructive" });
-      return;
-    }
-    if (!email || !password) {
-        toast({ title: "Missing Information", description: "Please enter your email and password.", variant: "destructive" });
-        return;
-    }
+    if (!auth) return handleError("Firebase is not configured correctly.");
+    if (!email || !password) return handleError("Please enter your email and password.");
+
     setLoading(true);
+    setError(null);
     try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
         
         if (!userCredential.user.emailVerified) {
-            toast({
-                title: "Email Not Verified",
-                description: "Please verify your email before logging in. Check your inbox for a verification link.",
-                variant: "destructive",
-            });
             await auth.signOut();
-            return;
+            return handleError("Please verify your email before logging in. Check your inbox for a verification link.");
         }
 
-        await upsertUser(userCredential.user);
-        await handleSuccessfulLogin(userCredential.user.uid);
+        await handleSuccessfulLogin(userCredential.user);
     } catch (error: any) {
-        console.error("Error signing in with email: ", error);
         let description = "Could not sign you in. Please check your credentials and try again.";
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             description = "Invalid email or password. Please try again.";
         }
-        toast({ title: "Sign-in Failed", description, variant: "destructive" });
+        handleError(description);
+    } finally {
+        setLoading(false);
+    }
+  }
+  
+  // NEW: Phone Authentication Step 1: Send verification code
+  const handlePhoneSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!auth || !window.recaptchaVerifier) return handleError("Firebase is not configured correctly.");
+    if (!phone) return handleError("Please enter your phone number with country code (e.g., +16505551234).");
+    
+    setLoading(true);
+    setError(null);
+    try {
+        const confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
+        window.confirmationResult = confirmationResult;
+        setShowCodeInput(true);
+        toast({ title: "Code Sent!", description: "A verification code has been sent to your phone." });
+    } catch (error: any) {
+        console.error("Phone sign-in error:", error);
+        handleError("Failed to send verification code. Please check the phone number and try again.");
+    } finally {
+        setLoading(false);
+    }
+  };
+  
+  // NEW: Phone Authentication Step 2: Verify code
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!window.confirmationResult) return handleError("Verification process expired. Please request a new code.");
+    if (!code) return handleError("Please enter the verification code.");
+    
+    setLoading(true);
+    setError(null);
+    try {
+        const result = await window.confirmationResult.confirm(code);
+        await handleSuccessfulLogin(result.user);
+    } catch (error: any) {
+        console.error("Code verification error:", error);
+        handleError("Invalid code. Please try again.");
     } finally {
         setLoading(false);
     }
   }
 
+
   const handlePasswordReset = async () => {
-    if (!auth) {
-        toast({ title: "Configuration Error", description: "Firebase is not configured correctly.", variant: "destructive" });
-        return;
-    }
-    if (!resetEmail) {
-        toast({ title: "Email required", description: "Please enter your email address.", variant: "destructive" });
-        return;
-    }
+    if (!auth) return handleError("Firebase is not configured correctly.");
+    if (!resetEmail) return handleError("Please enter your email address.", "toast");
+    
     setIsResetting(true);
     try {
         await sendPasswordResetEmail(auth, resetEmail);
-        toast({
-            title: "Check your email",
-            description: `A password reset link has been sent to ${resetEmail}.`
-        });
+        toast({ title: "Check your email", description: `A password reset link has been sent to ${resetEmail}.` });
         setForgotDialogOpen(false);
         setResetEmail("");
     } catch (error: any) {
@@ -125,11 +185,20 @@ export default function LoginPage() {
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             description = "No user found with this email address.";
         }
-        toast({ title: "Error", description, variant: "destructive" });
+        handleError(description, "toast");
     } finally {
         setIsResetting(false);
     }
   };
+  
+  // NEW: Centralized error handler
+  const handleError = (message: string, type: 'alert' | 'toast' = 'alert') => {
+      if (type === 'toast') {
+          toast({ title: "Error", description: message, variant: "destructive" });
+      } else {
+          setError(message);
+      }
+  }
 
   return (
     <>
@@ -159,104 +228,104 @@ export default function LoginPage() {
                   </span>
                 </div>
               </div>
-              <form onSubmit={handleEmailSignIn}>
+            </div>
+
+            {/* MODIFIED: Tabbed interface for Email and Phone */}
+            <Tabs defaultValue="email" className="w-full mt-4" onValueChange={() => setError(null)}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="email">Email</TabsTrigger>
+                <TabsTrigger value="phone">Phone</TabsTrigger>
+              </TabsList>
+              <TabsContent value="email">
+                <form onSubmit={handleEmailSignIn} className="space-y-4 pt-4">
                   <div className="grid gap-2">
                     <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                    />
+                    <Input id="email" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={loading} />
                   </div>
-                  <div className="grid gap-2 mt-4">
+                  <div className="grid gap-2">
                     <div className="flex items-center">
                       <Label htmlFor="password">Password</Label>
-                      <Button
-                        variant="link"
-                        type="button"
-                        onClick={() => setForgotDialogOpen(true)}
-                        className="ml-auto inline-block h-auto p-0 text-sm underline"
-                      >
+                      <Button variant="link" type="button" onClick={() => setForgotDialogOpen(true)} className="ml-auto inline-block h-auto p-0 text-sm underline">
                         Forgot your password?
                       </Button>
                     </div>
                     <div className="relative">
-                        <Input 
-                            id="password"
-                            type={showPassword ? "text" : "password"}
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            disabled={loading}
-                            className="pr-10"
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowPassword((prev) => !prev)}
-                            disabled={loading}
-                        >
-                            {showPassword ? (
-                                <EyeOff className="h-4 w-4" aria-hidden="true" />
-                            ) : (
-                                <Eye className="h-4 w-4" aria-hidden="true" />
-                            )}
-                            <span className="sr-only">
-                                {showPassword ? "Hide password" : "Show password"}
-                            </span>
-                        </Button>
+                      <Input id="password" type={showPassword ? "text" : "password"} required value={password} onChange={(e) => setPassword(e.target.value)} disabled={loading} className="pr-10" />
+                      <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword((prev) => !prev)} disabled={loading}>
+                        {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                      </Button>
                     </div>
                   </div>
-                  <Button type="submit" className="w-full mt-4" disabled={loading}>
-                      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Login
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Login
                   </Button>
-              </form>
-            </div>
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              Don't have an account?
-            </div>
+                </form>
+              </TabsContent>
+              <TabsContent value="phone">
+                <div className="pt-4">
+                  {!showCodeInput ? (
+                    <form onSubmit={handlePhoneSignIn} className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="phone-number">Phone Number</Label>
+                        <Input id="phone-number" type="tel" placeholder="+1 650 555 1234" required value={phone} onChange={(e) => setPhone(e.target.value)} disabled={loading} />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Send Verification Code
+                      </Button>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleVerifyCode} className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="verification-code">Verification Code</Label>
+                        <Input id="verification-code" type="text" placeholder="123456" required value={code} onChange={(e) => setCode(e.target.value)} disabled={loading} />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={loading}>
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Verify and Login
+                      </Button>
+                       <Button variant="link" onClick={() => setShowCodeInput(false)} className="w-full" disabled={loading}>
+                        Back to phone number entry
+                      </Button>
+                    </form>
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* NEW: Centralized error display */}
+            {error && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            <div className="mt-4 text-center text-sm text-muted-foreground">Don't have an account?</div>
             <Link href="/signup" passHref>
-              <Button variant="outline" className="w-full mt-2">
-                Get started
-              </Button>
+              <Button variant="outline" className="w-full mt-2">Get started</Button>
             </Link>
           </CardContent>
         </Card>
       </div>
+      
+      {/* NEW: reCAPTCHA container, necessary for phone auth */}
+      <div id="recaptcha-container" ref={recaptchaContainerRef}></div>
 
+      {/* MODIFIED: Forgot Password Dialog */}
       <Dialog open={isForgotDialogOpen} onOpenChange={setForgotDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              Enter your email address and we'll send you a link to reset your password.
-            </DialogDescription>
+            <DialogDescription>Enter your email address and we'll send you a link to reset your password.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="reset-email">Email</Label>
-              <Input
-                id="reset-email"
-                type="email"
-                placeholder="m@example.com"
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-                autoFocus
-              />
+              <Input id="reset-email" type="email" placeholder="m@example.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} autoFocus />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
             <Button onClick={handlePasswordReset} disabled={isResetting}>
-              {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Send Reset Link
+              {isResetting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Send Reset Link
             </Button>
           </DialogFooter>
         </DialogContent>
