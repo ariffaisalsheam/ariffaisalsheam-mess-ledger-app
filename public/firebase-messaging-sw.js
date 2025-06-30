@@ -1,35 +1,37 @@
-// This file must be in the public directory
+// DO NOT MODIFY. This file is generated and managed by Firebase.
+// https://firebase.google.com/docs/web/setup
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
-// Scripts for firebase and firebase messaging
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js");
-importScripts("https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js");
-
-// Your web app's Firebase configuration
+/*
+ ***************************************************************************************
+ *  IMPORTANT: YOU MUST MANUALLY REPLACE THE PLACEHOLDER CONFIG WITH YOUR OWN.          *
+ *  This service worker runs in the background and cannot access environment variables.*
+ *  Copy the config from your `.env.local` file and paste it here.                     *
+ ***************************************************************************************
+*/
 const firebaseConfig = {
-  apiKey: "YOUR_NEXT_PUBLIC_FIREBASE_API_KEY",
-  authDomain: "YOUR_NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN",
-  projectId: "YOUR_NEXT_PUBLIC_FIREBASE_PROJECT_ID",
-  storageBucket: "YOUR_NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
-  appId: "YOUR_NEXT_PUBLIC_FIREBASE_APP_ID",
+  apiKey: "YOUR_API_KEY_HERE",
+  authDomain: "YOUR_AUTH_DOMAIN_HERE",
+  projectId: "YOUR_PROJECT_ID_HERE",
+  storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
+  appId: "YOUR_APP_ID_HERE",
 };
 
-// Initialize Firebase
+// Initialize the Firebase app in the service worker with the background messaging service.
 firebase.initializeApp(firebaseConfig);
-
-// Retrieve an instance of Firebase Messaging so that it can handle background messages.
 const messaging = firebase.messaging();
 
+// Optional: If you want to handle background messages here, you can do so.
+// For example, to show a custom notification.
 messaging.onBackgroundMessage((payload) => {
-  console.log(
-    "[firebase-messaging-sw.js] Received background message ",
-    payload
-  );
-  
+  console.log('[firebase-messaging-sw.js] Received background message ', payload);
+  // Customize notification here
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: "/icon-192x192.png", // Make sure you have this icon in your public folder
+    icon: payload.notification.icon || '/icon-192x192.png',
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

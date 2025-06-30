@@ -815,7 +815,7 @@ export const addExpense = async (messId: string, userId: string, amount: number,
     await addDoc(pendingExpensesRef, expenseData);
     await createNotification(messId, {
         userId: 'manager',
-        message: `${user?.displayName} submitted a new expense of ৳${amount} for review.`,
+        message: `${user?.displayName} submitted a new expense for '${description}' for review.`,
         link: '/dashboard/review'
     });
 };
@@ -902,7 +902,7 @@ export const requestExpenseDelete = async (messId: string, expense: Expense) => 
     });
     await createNotification(messId, {
         userId: 'manager',
-        message: `${user?.displayName} requested to delete an expense.`,
+        message: `${user?.displayName} requested to delete an expense for '${expense.description}'.`,
         link: '/dashboard/review'
     });
 };
@@ -981,7 +981,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
 
     await createNotification(messId, {
         userId: pendingDeposit.userId,
-        message: `Your deposit request was approved.`,
+        message: `Your deposit request of ৳${pendingDeposit.amount} was approved.`,
         link: '/dashboard'
     });
 };
@@ -996,7 +996,7 @@ export const rejectDeposit = async (messId: string, depositId: string) => {
         await deleteDoc(depositRef);
         await createNotification(messId, {
             userId: depositData.userId,
-            message: `Your deposit request was rejected.`
+            message: `Your deposit request of ৳${depositData.amount} was rejected.`
         });
     }
 };
@@ -1072,7 +1072,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
     
     await createNotification(messId, {
         userId: pendingExpense.userId,
-        message: `Your expense request for "${pendingExpense.description}" was approved.`,
+        message: `Your expense for '${pendingExpense.description}' was approved.`,
         link: '/dashboard'
     });
 };

@@ -26,7 +26,11 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
   storage = getStorage(app);
   // Initialize messaging only in the browser
   if (typeof window !== 'undefined') {
-    messaging = getMessaging(app);
+    try {
+      messaging = getMessaging(app);
+    } catch (error) {
+        console.error("Failed to initialize Firebase Messaging:", error);
+    }
   }
 } else {
   console.warn("Firebase configuration is missing or incomplete. Please create a .env.local file with your Firebase project credentials. Authentication features will be disabled.");
