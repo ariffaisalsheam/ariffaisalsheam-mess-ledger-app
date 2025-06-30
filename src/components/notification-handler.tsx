@@ -49,9 +49,22 @@ const NotificationHandler = () => {
         }
       };
 
-      requestPermission();
+      // Delay permission request slightly to ensure auth state is settled
+      const timer = setTimeout(() => {
+        if (auth.currentUser) {
+            requestPermission();
+        } else {
+            const unsubscribe = auth.onAuthStateChanged(user => {
+                if (user) {
+                    requestPermission();
+                    unsubscribe();
+                }
+            });
+        }
+      }, 2000);
+      
 
-      const unsubscribe = onMessage(messaging!, (payload) => {
+      const unsubscribeOnMessage = onMessage(messaging, (payload) => {
         console.log('Foreground message received.', payload);
         toast({
           title: payload.notification?.title || 'New Notification',
@@ -60,7 +73,8 @@ const NotificationHandler = () => {
       });
 
       return () => {
-        unsubscribe();
+        clearTimeout(timer);
+        unsubscribeOnMessage();
       };
     }
   }, [toast]);

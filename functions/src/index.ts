@@ -25,6 +25,10 @@ export const sendPushNotification = functions.firestore
       // If target is 'manager', find all users with manager role in this mess
       const membersRef = db.collection(`messes/${messId}/members`);
       const snapshot = await membersRef.where("role", "==", "manager").get();
+      if (snapshot.empty) {
+        console.log("No managers found for this mess.");
+        return;
+      }
       snapshot.forEach((doc) => {
         targetUserIds.push(doc.id);
       });
@@ -83,14 +87,22 @@ export const sendPushNotification = functions.firestore
       const error = result.error;
       if (error) {
         console.error("Failure sending notification to", allTokens[index], error);
+        // Common error codes for invalid tokens
         if (
           error.code === "messaging/invalid-registration-token" ||
           error.code === "messaging/registration-token-not-registered"
         ) {
-          // This is a complex operation to remove a specific token from an
-          // array in multiple user documents. For simplicity in this context,
-          // we are logging it. A production app would implement token cleanup.
-          console.log("TODO: Clean up invalid token:", allTokens[index]);
+          const invalidToken = allTokens[index];
+          console.log("Scheduling cleanup for invalid token:", invalidToken);
+          // Find the user associated with the invalid token and remove it.
+          // This is a simplified approach. A more robust system might batch these.
+          userDocs.forEach(userDoc => {
+             const userData = userDoc.data();
+             if (userData.fcmTokens && userData.fcmTokens.includes(invalidToken)) {
+                 const newTokens = userData.fcmTokens.filter((t: string) => t !== invalidToken);
+                 tokensToRemove.push(userDoc.ref.update({ fcmTokens: newTokens }));
+             }
+          });
         }
       }
     });
