@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, PlusCircle, UtensilsCrossed, UserPlus } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, Plus, PlusCircle, UtensilsCrossed, UserPlus, Wallet, Receipt, Coins } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -37,6 +39,7 @@ export default function DashboardPage() {
   const [isDepositDialogOpen, setDepositDialogOpen] = useState(false);
   const [isExpenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [isGuestMealDialogOpen, setGuestMealDialogOpen] = useState(false);
+  const [isFabOpen, setFabOpen] = useState(false);
   const router = useRouter();
 
   const fetchData = useCallback(async (messId: string, uid: string) => {
@@ -85,8 +88,8 @@ export default function DashboardPage() {
   
   const handleSuccess = () => {
     if (user && userProfile?.messId) {
-      // Refetch data to update the dashboard
       fetchData(userProfile.messId, user.uid);
+      setFabOpen(false); // Close FAB menu on success
     }
   }
 
@@ -102,6 +105,7 @@ export default function DashboardPage() {
   const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
   const mealRate = totalMessMeals > 0 ? totalExpenses / totalMessMeals : 0;
   const totalMessBalance = totalDeposits - totalExpenses;
+  const balanceProgress = totalDeposits > 0 ? (totalMessBalance / totalDeposits) * 100 : 0;
 
   return (
     <>
@@ -128,76 +132,81 @@ export default function DashboardPage() {
                 userId={user.uid}
                 onSuccess={handleSuccess}
             />
+             <Popover open={isFabOpen} onOpenChange={setFabOpen}>
+                <PopoverTrigger asChild>
+                     <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-20">
+                        <Plus className="h-6 w-6" />
+                        <span className="sr-only">Add Transaction</span>
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2 mb-2" align="end" side="top">
+                    <div className="flex flex-col gap-1">
+                         <Button variant="ghost" className="justify-start" onClick={() => { setGuestMealDialogOpen(true); }}>
+                            <UserPlus className="mr-2 h-4 w-4" /> Log Guest Meal
+                        </Button>
+                        <Button variant="ghost" className="justify-start" onClick={() => { setDepositDialogOpen(true); }}>
+                            <Wallet className="mr-2 h-4 w-4" /> Add My Deposit
+                        </Button>
+                        <Button variant="ghost" className="justify-start" onClick={() => { setExpenseDialogOpen(true); }}>
+                            <Receipt className="mr-2 h-4 w-4" /> Add Mess Expense
+                        </Button>
+                    </div>
+                </PopoverContent>
+            </Popover>
         </>
       )}
       <div className="flex flex-col gap-6">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Mess Balance</CardTitle>
-              <span className={`text-lg ${totalMessBalance >= 0 ? 'text-success' : 'text-destructive'}`}>৳</span>
+        <Card className="w-full">
+            <CardHeader>
+                <CardTitle className="font-headline">Mess Financial Summary</CardTitle>
+                <CardDescription>An overview of your mess's current financial status.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${totalMessBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {totalMessBalance >= 0 ? '+' : '-'}৳{Math.abs(totalMessBalance).toFixed(2)}
-              </div>
-              <p className="text-xs text-muted-foreground">Remaining funds in the mess account</p>
+            <CardContent className="space-y-4">
+                <div>
+                    <p className="text-sm text-muted-foreground">Remaining Balance</p>
+                    <p className={`text-4xl font-bold ${totalMessBalance >= 0 ? 'text-success' : 'text-destructive'}`}>
+                        ৳{totalMessBalance.toFixed(2)}
+                    </p>
+                </div>
+                <Progress value={balanceProgress} aria-label={`${balanceProgress.toFixed(0)}% of funds remaining`} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-6 pt-2">
+                    <div className="flex items-start gap-3">
+                        <Coins className="h-5 w-5 text-primary mt-1 flex-shrink-0"/>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Meal Rate</p>
+                            <p className="text-lg font-bold">৳{mealRate.toFixed(2)}</p>
+                        </div>
+                    </div>
+                     <div className="flex items-start gap-3">
+                        <UtensilsCrossed className="h-5 w-5 text-primary mt-1 flex-shrink-0"/>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Meals</p>
+                            <p className="text-lg font-bold">{totalMessMeals.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 mt-1 flex-shrink-0 rounded-full bg-destructive/20 flex items-center justify-center">
+                          <p className="font-bold text-destructive text-sm">-</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Expenses</p>
+                            <p className="text-lg font-bold">৳{totalExpenses.toFixed(2)}</p>
+                        </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                        <div className="h-5 w-5 mt-1 flex-shrink-0 rounded-full bg-success/20 flex items-center justify-center">
+                          <p className="font-bold text-success text-sm">+</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-muted-foreground">Total Deposits</p>
+                            <p className="text-lg font-bold">৳{totalDeposits.toFixed(2)}</p>
+                        </div>
+                    </div>
+                </div>
             </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Current Meal Rate</CardTitle>
-              <span className="text-lg text-primary">৳</span>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">৳{mealRate.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Based on total expenses and meals</p>
-            </CardContent>
-          </Card>
-           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Meals</CardTitle>
-              <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalMessMeals.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Consumed across all members</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
-              <span className="text-lg text-destructive">৳</span>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">৳{totalExpenses.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Total spending this month</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Deposits</CardTitle>
-              <span className="text-lg text-success">৳</span>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">৳{totalDeposits.toFixed(2)}</div>
-              <p className="text-xs text-muted-foreground">Total money pooled this month</p>
-            </CardContent>
-          </Card>
-        </div>
+        </Card>
         
-        <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-headline font-semibold flex-1">Activity Feed</h2>
-            <Button variant="outline" onClick={() => setGuestMealDialogOpen(true)}>
-                <UserPlus className="mr-2 h-4 w-4" /> Log Guest Meal
-            </Button>
-            <Button onClick={() => setDepositDialogOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add My Deposit
-            </Button>
-            <Button variant="secondary" onClick={() => setExpenseDialogOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Expense
-            </Button>
-        </div>
+        <h2 className="text-2xl font-headline font-semibold flex-1">Activity Feed</h2>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="flex flex-col">
@@ -271,3 +280,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
