@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { addExpense } from '@/services/messService';
+import { ReceiptUpload } from './receipt-upload';
 
 interface AddExpenseDialogProps {
   isOpen: boolean;
@@ -29,8 +30,15 @@ interface AddExpenseDialogProps {
 export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess }: AddExpenseDialogProps) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+
+  const handleClearForm = () => {
+    setAmount('');
+    setDescription('');
+    setReceiptUrl(null);
+  }
 
   const handleSubmit = async () => {
     if (!description.trim() || !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
@@ -44,15 +52,14 @@ export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess 
 
     setSubmitting(true);
     try {
-      await addExpense(messId, userId, parseFloat(amount), description.trim());
+      await addExpense(messId, userId, parseFloat(amount), description.trim(), receiptUrl);
       toast({
         title: "Success!",
         description: "Your expense has been submitted for manager approval.",
       });
       onSuccess();
       setIsOpen(false);
-      setAmount('');
-      setDescription('');
+      handleClearForm();
     } catch (error) {
       console.error("Failed to add expense:", error);
       toast({
@@ -66,8 +73,11 @@ export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess 
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) handleClearForm();
+      setIsOpen(open);
+    }}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline">Add Mess Expense</DialogTitle>
           <DialogDescription>
@@ -99,6 +109,14 @@ export function AddExpenseDialog({ isOpen, setIsOpen, messId, userId, onSuccess 
               className="col-span-3"
               placeholder="e.g., 1250.50"
             />
+          </div>
+           <div className="grid grid-cols-4 items-start gap-4">
+            <Label htmlFor="receipt" className="text-right pt-2">
+              Receipt
+            </Label>
+            <div className="col-span-3">
+              <ReceiptUpload onUploadComplete={setReceiptUrl} userId={userId} />
+            </div>
           </div>
         </div>
         <DialogFooter>

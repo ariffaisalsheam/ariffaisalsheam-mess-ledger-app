@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -25,9 +25,11 @@ import {
   type Mess,
 } from "@/services/messService";
 import { format } from 'date-fns';
-import { AddDepositDialog } from "./add-deposit-dialog";
-import { AddExpenseDialog } from "./add-expense-dialog";
-import { LogGuestMealDialog } from "./log-guest-meal-dialog";
+
+const AddDepositDialog = React.lazy(() => import("./add-deposit-dialog").then(module => ({ default: module.AddDepositDialog })));
+const AddExpenseDialog = React.lazy(() => import("./add-expense-dialog").then(module => ({ default: module.AddExpenseDialog })));
+const LogGuestMealDialog = React.lazy(() => import("./log-guest-meal-dialog").then(module => ({ default: module.LogGuestMealDialog })));
+
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
@@ -117,28 +119,36 @@ export default function DashboardPage() {
     <>
       {user && userProfile?.messId && (
         <>
-            <AddDepositDialog 
-                isOpen={isDepositDialogOpen}
-                setIsOpen={setDepositDialogOpen}
-                messId={userProfile.messId}
-                userId={user.uid}
-                onSuccess={handleSuccess}
-            />
-            <AddExpenseDialog 
-                isOpen={isExpenseDialogOpen}
-                setIsOpen={setExpenseDialogOpen}
-                messId={userProfile.messId}
-                userId={user.uid}
-                onSuccess={handleSuccess}
-            />
-            <LogGuestMealDialog
-                isOpen={isGuestMealDialogOpen}
-                setIsOpen={setGuestMealDialogOpen}
-                messId={userProfile.messId}
-                userId={user.uid}
-                onSuccess={handleSuccess}
-                mealSettings={mess?.mealSettings || null}
-            />
+            <Suspense fallback={<div />}>
+              {isDepositDialogOpen && (
+                <AddDepositDialog 
+                    isOpen={isDepositDialogOpen}
+                    setIsOpen={setDepositDialogOpen}
+                    messId={userProfile.messId}
+                    userId={user.uid}
+                    onSuccess={handleSuccess}
+                />
+              )}
+              {isExpenseDialogOpen && (
+                <AddExpenseDialog 
+                    isOpen={isExpenseDialogOpen}
+                    setIsOpen={setExpenseDialogOpen}
+                    messId={userProfile.messId}
+                    userId={user.uid}
+                    onSuccess={handleSuccess}
+                />
+              )}
+              {isGuestMealDialogOpen && (
+                 <LogGuestMealDialog
+                    isOpen={isGuestMealDialogOpen}
+                    setIsOpen={setGuestMealDialogOpen}
+                    messId={userProfile.messId}
+                    userId={user.uid}
+                    onSuccess={handleSuccess}
+                    mealSettings={mess?.mealSettings || null}
+                />
+              )}
+            </Suspense>
              <Popover open={isFabOpen} onOpenChange={setFabOpen}>
                 <PopoverTrigger asChild>
                      <Button className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg z-20">
@@ -148,13 +158,13 @@ export default function DashboardPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-2 mb-2" align="end" side="top">
                     <div className="flex flex-col gap-1">
-                         <Button variant="ghost" className="justify-start" onClick={() => { setGuestMealDialogOpen(true); }}>
+                         <Button variant="ghost" className="justify-start" onClick={() => { setGuestMealDialogOpen(true); setFabOpen(false); }}>
                             <UserPlus className="mr-2 h-4 w-4" /> Log Guest Meal
                         </Button>
-                        <Button variant="ghost" className="justify-start" onClick={() => { setDepositDialogOpen(true); }}>
+                        <Button variant="ghost" className="justify-start" onClick={() => { setDepositDialogOpen(true); setFabOpen(false); }}>
                             <Wallet className="mr-2 h-4 w-4" /> Add My Deposit
                         </Button>
-                        <Button variant="ghost" className="justify-start" onClick={() => { setExpenseDialogOpen(true); }}>
+                        <Button variant="ghost" className="justify-start" onClick={() => { setExpenseDialogOpen(true); setFabOpen(false); }}>
                             <Receipt className="mr-2 h-4 w-4" /> Add Mess Expense
                         </Button>
                     </div>

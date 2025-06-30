@@ -67,6 +67,7 @@ export interface Expense {
     addedBy: string; // User's name
     date: string; // ISO string
     userId: string;
+    receiptUrl?: string;
     // For pending requests
     type?: 'new' | 'edit' | 'delete';
     originalId?: string;
@@ -770,11 +771,11 @@ export const addDeposit = async (messId: string, userId: string, amount: number)
     });
 };
 
-export const addExpense = async (messId: string, userId: string, amount: number, description: string) => {
+export const addExpense = async (messId: string, userId: string, amount: number, description: string, receiptUrl: string | null = null) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(userId);
     const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
-    await addDoc(pendingExpensesRef, {
+    const expenseData: any = {
         type: 'new',
         amount,
         description,
@@ -782,7 +783,11 @@ export const addExpense = async (messId: string, userId: string, amount: number,
         addedBy: user?.displayName || "Unknown Member",
         date: serverTimestamp(),
         status: 'pending'
-    });
+    };
+    if (receiptUrl) {
+        expenseData.receiptUrl = receiptUrl;
+    }
+    await addDoc(pendingExpensesRef, expenseData);
     await createNotification(messId, {
         userId: 'manager',
         message: `${user?.displayName} submitted a new expense of ৳${amount} for review.`,
