@@ -19,7 +19,8 @@ import {
   onSnapshot,
   orderBy,
   documentId,
-  increment
+  increment,
+  arrayUnion
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile, type User as FirebaseUser } from 'firebase/auth';
@@ -35,6 +36,7 @@ export type UserProfile = {
   photoURL: string | null;
   messId?: string;
   role?: 'manager' | 'member';
+  fcmTokens?: string[];
 };
 
 export type Member = {
@@ -151,6 +153,17 @@ export interface MonthlyReport {
     deposits: Deposit[];
 }
 
+export const saveUserFCMToken = async (userId: string, token: string) => {
+    if (!db || !token) return;
+    const userRef = doc(db, 'users', userId);
+    try {
+        await updateDoc(userRef, {
+            fcmTokens: arrayUnion(token)
+        });
+    } catch (error) {
+        console.error("Error saving FCM token:", error);
+    }
+};
 
 // --- Notifications ---
 

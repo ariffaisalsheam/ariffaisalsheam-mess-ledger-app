@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import dynamic from 'next/dynamic';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from "next-themes";
 import { InstallPwaButton } from "@/components/install-pwa-button";
 import { InstallPwaNavButton } from "@/components/install-pwa-nav-button";
+
+const NotificationHandler = dynamic(() => import('@/components/notification-handler'), { ssr: false });
 
 export default function DashboardLayout({
   children,
@@ -258,6 +260,9 @@ export default function DashboardLayout({
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      <Suspense fallback={null}>
+        <NotificationHandler />
+      </Suspense>
       <div className="hidden border-r bg-card md:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
