@@ -59,8 +59,10 @@ export default function ReportsPage() {
         setReport(null);
         try {
             const [year, month] = selectedMonth.split('-').map(Number);
+            toast({ title: "Generating Report", description: "Fetching records... this may take a moment for the first time." });
             const reportData = await generateMonthlyReport(userProfile.messId, year, month);
             setReport(reportData);
+             toast({ title: "Report Ready", description: "Your monthly report has been generated successfully." });
         } catch (error) {
             console.error("Failed to generate report:", error);
             toast({ title: "Error", description: "Could not generate the report. Please try again.", variant: "destructive" });
@@ -136,7 +138,7 @@ export default function ReportsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="font-headline">Generate Monthly Report</CardTitle>
-                    <CardDescription>Select a month to generate a financial summary for your mess.</CardDescription>
+                    <CardDescription>Select a month to generate a financial summary for your mess. Reports are cached after the first generation for faster access.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-wrap gap-4 items-end">
@@ -190,13 +192,13 @@ export default function ReportsPage() {
                     <CardContent className="grid gap-6">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center border-b pb-6">
                             <div><p className="text-sm text-muted-foreground">Total Expenses</p><p className="text-2xl font-bold">৳{report.totalExpenses.toFixed(2)}</p></div>
-                            <div><p className="text-sm text-muted-foreground">Total Meals</p><p className="text-2xl font-bold">{report.totalMeals.toFixed(2)}</p></div>
+                            <div><p className="text-sm text-muted-foreground">Total Meals</p><p className="text-2xl font-bold">{report.totalMeals}</p></div>
                             <div><p className="text-sm text-muted-foreground">Meal Rate</p><p className="text-2xl font-bold">৳{report.mealRate.toFixed(2)}</p></div>
                             <div><p className="text-sm text-muted-foreground">Total Deposits</p><p className="text-2xl font-bold">৳{report.totalDeposits.toFixed(2)}</p></div>
                         </div>
                         <div>
                            <h3 className="text-lg font-headline mb-4">Member Breakdown</h3>
-                           <div className="border rounded-lg overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Member</TableHead><TableHead className="text-right">Total Meals (Guests)</TableHead><TableHead className="text-right">Meal Cost</TableHead><TableHead className="text-right">Deposits</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader><TableBody>{report.memberReports.map(member => (<TableRow key={member.memberId}><TableCell><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={member.avatar} alt={member.memberName} data-ai-hint="person portrait" /><AvatarFallback>{member.memberName.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar><span className="font-medium">{member.memberName}</span></div></TableCell><TableCell className="text-right font-mono">{member.totalMeals.toFixed(2)}{member.totalGuestMeals > 0 && (<span className="text-muted-foreground"> ({member.totalGuestMeals.toFixed(2)})</span>)}</TableCell><TableCell className="text-right font-mono text-destructive">- ৳{member.mealCost.toFixed(2)}</TableCell><TableCell className="text-right font-mono text-success">+ ৳{member.totalDeposits.toFixed(2)}</TableCell><TableCell className={`text-right font-bold ${member.finalBalance >= 0 ? 'text-success' : 'text-destructive'}`}>৳{member.finalBalance.toFixed(2)}</TableCell></TableRow>))}</TableBody></Table></div>
+                           <div className="border rounded-lg overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Member</TableHead><TableHead className="text-right">Total Meals (Guests)</TableHead><TableHead className="text-right">Meal Cost</TableHead><TableHead className="text-right">Deposits</TableHead><TableHead className="text-right">Balance</TableHead></TableRow></TableHeader><TableBody>{report.memberReports.map(member => (<TableRow key={member.memberId}><TableCell><div className="flex items-center gap-3"><Avatar className="h-8 w-8"><AvatarImage src={member.avatar} alt={member.memberName} data-ai-hint="person portrait" /><AvatarFallback>{member.memberName.substring(0, 2).toUpperCase()}</AvatarFallback></Avatar><span className="font-medium">{member.memberName}</span></div></TableCell><TableCell className="text-right font-mono">{member.totalMeals}{member.totalGuestMeals > 0 && (<span className="text-muted-foreground"> ({member.totalGuestMeals})</span>)}</TableCell><TableCell className="text-right font-mono text-destructive">- ৳{member.mealCost.toFixed(2)}</TableCell><TableCell className="text-right font-mono text-success">+ ৳{member.totalDeposits.toFixed(2)}</TableCell><TableCell className={`text-right font-bold ${member.finalBalance >= 0 ? 'text-success' : 'text-destructive'}`}>৳{member.finalBalance.toFixed(2)}</TableCell></TableRow>))}</TableBody></Table></div>
                         </div>
                          <div className="pt-6 border-t">
                             <h3 className="text-lg font-headline mb-4">Transaction Details</h3>

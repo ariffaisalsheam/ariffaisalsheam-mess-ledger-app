@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Plus, PlusCircle, UtensilsCrossed, UserPlus, Wallet, Receipt, Coins } from "lucide-react";
+import { Loader2, Plus, UserPlus, Wallet, Receipt, Coins, UtensilsCrossed } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { useRouter } from "next/navigation";
@@ -17,11 +17,12 @@ import {
   getMemberDetails,
   getExpenses,
   getDeposits,
-  getTotalMessMeals,
+  getMessById,
   type UserProfile,
   type Member,
   type Expense,
-  type Deposit
+  type Deposit,
+  type Mess,
 } from "@/services/messService";
 import { format } from 'date-fns';
 import { AddDepositDialog } from "./add-deposit-dialog";
@@ -33,9 +34,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [memberDetails, setMemberDetails] = useState<Member | null>(null);
+  const [mess, setMess] = useState<Mess | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [deposits, setDeposits] = useState<Deposit[]>([]);
-  const [totalMessMeals, setTotalMessMeals] = useState(0);
   const [isDepositDialogOpen, setDepositDialogOpen] = useState(false);
   const [isExpenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [isGuestMealDialogOpen, setGuestMealDialogOpen] = useState(false);
@@ -44,16 +45,16 @@ export default function DashboardPage() {
 
   const fetchData = useCallback(async (messId: string, uid: string) => {
       try {
-          const [details, expensesData, depositsData, messMealsData] = await Promise.all([
+          const [details, messData, expensesData, depositsData] = await Promise.all([
               getMemberDetails(messId, uid),
-              getExpenses(messId),
-              getDeposits(messId),
-              getTotalMessMeals(messId)
+              getMessById(messId),
+              getExpenses(messId, 10), // Fetch only the 10 most recent
+              getDeposits(messId, 10), // Fetch only the 10 most recent
           ]);
           setMemberDetails(details);
+          setMess(messData);
           setExpenses(expensesData);
           setDeposits(depositsData);
-          setTotalMessMeals(messMealsData);
       } catch (error) {
           console.error("Failed to fetch dashboard data:", error);
       }
@@ -101,9 +102,12 @@ export default function DashboardPage() {
     );
   }
 
-  const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
-  const totalDeposits = deposits.reduce((sum, item) => sum + item.amount, 0);
-  const mealRate = totalMessMeals > 0 ? totalExpenses / totalMessMeals : 0;
+  const summary = mess?.summary;
+  const totalExpenses = summary?.totalExpenses ?? 0;
+  const totalDeposits = summary?.totalDeposits ?? 0;
+  const totalMessMeals = summary?.totalMeals ?? 0;
+  const mealRate = summary?.mealRate ?? 0;
+  
   const totalMessBalance = totalDeposits - totalExpenses;
   const balanceProgress = totalDeposits > 0 ? (totalMessBalance / totalDeposits) * 100 : 0;
 
@@ -181,7 +185,7 @@ export default function DashboardPage() {
                         <UtensilsCrossed className="h-5 w-5 text-primary mt-1 flex-shrink-0"/>
                         <div>
                             <p className="text-sm text-muted-foreground">Total Meals</p>
-                            <p className="text-lg font-bold">{totalMessMeals.toFixed(2)}</p>
+                            <p className="text-lg font-bold">{totalMessMeals}</p>
                         </div>
                     </div>
                     <div className="flex items-start gap-3">
@@ -206,13 +210,13 @@ export default function DashboardPage() {
             </CardContent>
         </Card>
         
-        <h2 className="text-2xl font-headline font-semibold flex-1">Activity Feed</h2>
+        <h2 className="text-2xl font-headline font-semibold flex-1">Recent Activity</h2>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="flex flex-col">
             <CardHeader>
               <CardTitle className="font-headline">Mess Expenses</CardTitle>
-              <CardDescription>All approved expenses added by members.</CardDescription>
+              <CardDescription>Last 10 approved expenses.</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow">
               <ScrollArea className="h-72">
@@ -246,7 +250,7 @@ export default function DashboardPage() {
           <Card className="flex flex-col">
             <CardHeader>
               <CardTitle className="font-headline">Member Deposits</CardTitle>
-              <CardDescription>All approved deposits from members.</CardDescription>
+              <CardDescription>Last 10 approved deposits.</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow">
               <ScrollArea className="h-72">
@@ -280,5 +284,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
