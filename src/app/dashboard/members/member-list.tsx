@@ -1,6 +1,7 @@
 
 "use client";
 
+import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ interface MemberListProps {
   onAction: (dialog: 'mealRecord' | 'transactions' | 'ledger', member: Member) => void;
 }
 
-export function MemberList({ members, messId, currentUserProfile, onUpdate, onAction }: MemberListProps) {
+export const MemberList = React.memo(function MemberList({ members, messId, currentUserProfile, onUpdate, onAction }: MemberListProps) {
   const isManager = currentUserProfile.role === 'manager';
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,7 +94,7 @@ export function MemberList({ members, messId, currentUserProfile, onUpdate, onAc
                 <TableCell className={`text-right font-mono font-bold text-lg ${member.balance >= 0 ? 'text-success' : 'text-destructive'}`}>
                   ৳{member.balance.toFixed(2)}
                 </TableCell>
-                <TableCell className="text-center font-mono text-lg">{member.meals.toFixed(2)}</TableCell>
+                <TableCell className="text-center font-mono text-lg">{member.meals.toFixed(1).replace(/\.0$/, '')}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -162,4 +163,4 @@ export function MemberList({ members, messId, currentUserProfile, onUpdate, onAc
       </CardContent>
     </Card>
   );
-}
+});

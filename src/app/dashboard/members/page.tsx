@@ -83,12 +83,12 @@ export default function MembersPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleOpenDialog = (dialog: 'mealRecord' | 'transactions' | 'ledger', member: Member) => {
+  const handleOpenDialog = useCallback((dialog: 'mealRecord' | 'transactions' | 'ledger', member: Member) => {
     setSelectedMember(member);
     if (dialog === 'mealRecord') setMealRecordDialogOpen(true);
     if (dialog === 'transactions') setTransactionHistoryOpen(true);
     if (dialog === 'ledger') setMealLedgerOpen(true);
-  }
+  }, []);
 
   if (loading || !userProfile) {
     return (

@@ -1,0 +1,112 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isManager(messId) {
+      return isSignedIn() && getUserData().messId == messId && getUserData().role == 'manager';
+    }
+    
+    function isMember(messId) {
+      return isSignedIn() && getUserData().messId == messId;
+    }
+    
+    // --- Collection Rules ---
+
+    // User Profiles
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId
+                    && request.resource.data.keys().hasOnly(['displayName', 'photoURL', 'messId', 'role', 'uid', 'email'])
+                    && request.resource.data.displayName is string
+                    && (request.resource.data.messId == '' || request.resource.data.messId == get(/databases/$(database)/documents/users/$(userId)).data.messId); // Can only be cleared, not changed to a new mess.
+    }
+    
+    // Mess Documents & Subcollections
+    match /messes/{messId} {
+      allow read: if isMember(messId);
+      allow create: if isSignedIn() && request.resource.data.managerId == request.auth.uid;
+      allow update: if isManager(messId) && request.resource.data.keys().hasOnly(['name', 'mealSettings', 'managerId']);
+      allow delete: if isManager(messId);
+      
+      // Members Subcollection
+      match /members/{memberId} {
+        allow read: if isMember(messId);
+        // Creation happens via joinMessByInviteCode, updates via manager role
+        allow create: if isSignedIn(); 
+        allow update: if isManager(messId);
+        allow delete: if isManager(messId);
+      }
+      
+      // Meal Ledger Sub-collection
+      match /members/{memberId}/meals/{date} {
+        allow read: if isMember(messId);
+        // Allow user to write to their own meal log, or a manager to write to any
+        allow write: if isManager(messId) || (isMember(messId) && request.auth.uid == memberId);
+      }
+      
+      // Approved Expenses & Deposits (Read-only for clients, write through backend logic)
+      match /expenses/{expenseId} {
+        allow read: if isMember(messId);
+        allow write: if false; // All writes must go through pending queue
+      }
+      match /deposits/{depositId} {
+        allow read: if isMember(messId);
+        allow write: if false; // All writes must go through pending queue
+      }
+      
+      // Pending Expenses
+      match /pendingExpenses/{pendingId} {
+        allow read: if isManager(messId);
+        allow create: if isMember(messId)
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.amount is number && request.resource.data.amount > 0
+                      && request.resource.data.description is string;
+        // Deletion is the 'approval' or 'rejection' action
+        allow delete: if isManager(messId);
+        allow update: if false;
+      }
+
+      // Pending Deposits
+      match /pendingDeposits/{pendingId} {
+        allow read: if isManager(messId);
+        allow create: if isMember(messId)
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.amount is number && request.resource.data.amount > 0;
+        // Deletion is the 'approval' or 'rejection' action
+        allow delete: if isManager(messId);
+        allow update: if false;
+      }
+      
+      // Notifications & Logs
+      match /notifications/{notificationId} {
+        allow read: if isMember(messId);
+        // Writes are handled by service logic only
+        allow write: if false;
+      }
+
+      match /guestMealLog/{logId} {
+         allow read: if isManager(messId);
+         allow write: if false; // Handled by service logic
+      }
+    }
+    
+    // Monthly Reports (Cached data)
+    match /monthlyReports/{reportId} {
+       // Allow a member to read a report only if the reportId starts with their messId
+       allow read: if isMember(reportId.split('_')[0]);
+       allow write: if false; // Only backend service can write reports
+    }
+  }
+}
