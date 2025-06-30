@@ -3,6 +3,8 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from '@/components/theme-provider';
+import { Suspense } from 'react';
+import { Analytics } from '@/components/analytics';
 
 export const metadata: Metadata = {
   title: 'Mess Ledger',
@@ -31,6 +33,9 @@ export default function RootLayout({
           {children}
           <Toaster />
         </ThemeProvider>
+        <Suspense fallback={null}>
+            <Analytics />
+        </Suspense>
       </body>
     </html>
   );
