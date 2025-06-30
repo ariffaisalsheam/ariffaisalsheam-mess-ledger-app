@@ -667,85 +667,111 @@ export const getExpensesForUser = async (messId: string, userId: string): Promis
 export const updateDeposit = async (messId: string, deposit: Deposit, newAmount: number) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
-    const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
-    const messRef = doc(db, 'messes', messId);
-
     await runTransaction(db, async (transaction) => {
-        const memberDoc = await transaction.get(memberRef);
-        if (!memberDoc.exists()) throw new Error("Member not found.");
+        const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
+        const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
+        const messRef = doc(db, 'messes', messId);
+
+        const [memberDoc, messDoc] = await Promise.all([
+            transaction.get(memberRef),
+            transaction.get(messRef)
+        ]);
+        if (!memberDoc.exists() || !messDoc.exists()) throw new Error("Member or Mess not found.");
         
         const balanceChange = newAmount - deposit.amount;
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
+        const newTotalDeposits = summary.totalDeposits + balanceChange;
         
         transaction.update(memberRef, { balance: increment(balanceChange) });
         transaction.update(depositRef, { amount: newAmount });
-        transaction.update(messRef, { 'summary.totalDeposits': increment(balanceChange) });
+        transaction.set(messRef, { summary: { ...summary, totalDeposits: newTotalDeposits } }, { merge: true });
     });
 };
 
 export const deleteDeposit = async (messId: string, deposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
-    const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
-    const messRef = doc(db, 'messes', messId);
-
     await runTransaction(db, async (transaction) => {
-        const memberDoc = await transaction.get(memberRef);
-        if (!memberDoc.exists()) throw new Error("Member not found.");
+        const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
+        const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
+        const messRef = doc(db, 'messes', messId);
 
+        const [memberDoc, messDoc] = await Promise.all([
+            transaction.get(memberRef),
+            transaction.get(messRef)
+        ]);
+
+        if (!memberDoc.exists() || !messDoc.exists()) throw new Error("Member or Mess not found.");
+
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
+        const newTotalDeposits = summary.totalDeposits - deposit.amount;
+        
         transaction.update(memberRef, { balance: increment(-deposit.amount) });
         transaction.delete(depositRef);
-        transaction.update(messRef, { 'summary.totalDeposits': increment(-deposit.amount) });
+        transaction.set(messRef, { summary: { ...summary, totalDeposits: newTotalDeposits } }, { merge: true });
     });
 };
 
 export const updateExpense = async (messId: string, expenseId: string, amount: number, description: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
-    const messRef = doc(db, 'messes', messId);
     
     await runTransaction(db, async (transaction) => {
-        const expenseDoc = await transaction.get(expenseRef);
-        const messDoc = await transaction.get(messRef);
+        const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
+        const messRef = doc(db, 'messes', messId);
+        
+        const [expenseDoc, messDoc] = await Promise.all([
+            transaction.get(expenseRef),
+            transaction.get(messRef)
+        ]);
+
         if (!expenseDoc.exists() || !messDoc.exists()) throw new Error("Expense or Mess not found.");
         
         const oldAmount = expenseDoc.data().amount;
         const amountChange = amount - oldAmount;
         
-        const summary = messDoc.data().summary;
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
         const newTotalExpenses = summary.totalExpenses + amountChange;
         const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
         
         transaction.update(expenseRef, { amount, description });
-        transaction.update(messRef, {
-            'summary.totalExpenses': newTotalExpenses,
-            'summary.mealRate': newMealRate
-        });
+        transaction.set(messRef, {
+            summary: {
+                ...summary,
+                totalExpenses: newTotalExpenses,
+                mealRate: newMealRate
+            }
+        }, { merge: true });
     });
 };
 
 export const deleteExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
-    const messRef = doc(db, 'messes', messId);
 
      await runTransaction(db, async (transaction) => {
-        const expenseDoc = await transaction.get(expenseRef);
-        const messDoc = await transaction.get(messRef);
+        const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
+        const messRef = doc(db, 'messes', messId);
+
+        const [expenseDoc, messDoc] = await Promise.all([
+            transaction.get(expenseRef),
+            transaction.get(messRef)
+        ]);
+
         if (!expenseDoc.exists() || !messDoc.exists()) throw new Error("Expense or Mess not found.");
         
         const oldAmount = expenseDoc.data().amount;
         
-        const summary = messDoc.data().summary;
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
         const newTotalExpenses = summary.totalExpenses - oldAmount;
         const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
         
         transaction.delete(expenseRef);
-        transaction.update(messRef, {
-            'summary.totalExpenses': newTotalExpenses,
-            'summary.mealRate': newMealRate
-        });
+        transaction.set(messRef, { 
+            summary: {
+                ...summary,
+                totalExpenses: newTotalExpenses,
+                mealRate: newMealRate
+            }
+        }, { merge: true });
     });
 };
 
@@ -904,56 +930,66 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
 
 export const approveDeposit = async (messId: string, pendingDeposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
-    const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
-
+    
     await runTransaction(db, async (transaction) => {
-        const pendingDepositSnap = await transaction.get(pendingDepositRef);
+        const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
+        const messRef = doc(db, 'messes', messId);
+
+        const [pendingDepositSnap, messDoc] = await Promise.all([
+            transaction.get(pendingDepositRef),
+            transaction.get(messRef)
+        ]);
+        
         if (!pendingDepositSnap.exists()) {
              console.log("Pending deposit does not exist, likely already processed.");
              return;
         }
-
+        if (!messDoc.exists()) throw new Error("Mess not found.");
+        
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
         const type = pendingDeposit.type || 'new';
 
         if (type === 'new') {
             const memberRef = doc(db, 'messes', messId, 'members', pendingDeposit.userId);
-            const messRef = doc(db, 'messes', messId);
             const memberDoc = await transaction.get(memberRef);
             if (!memberDoc.exists()) throw `Member with ID ${pendingDeposit.userId} not found.`;
             
             const newDepositRef = doc(collection(db!, 'messes', messId, 'deposits'));
             const { id, status, ...finalDepositData } = pendingDeposit;
 
+            const newTotalDeposits = summary.totalDeposits + pendingDeposit.amount;
+
             transaction.set(newDepositRef, { ...finalDepositData, date: new Date(pendingDeposit.date), status: 'approved', approvedAt: serverTimestamp() });
             transaction.update(memberRef, { balance: increment(pendingDeposit.amount) });
-            transaction.update(messRef, { 'summary.totalDeposits': increment(pendingDeposit.amount) });
+            transaction.set(messRef, { summary: { ...summary, totalDeposits: newTotalDeposits } }, { merge: true });
+        
         } else if (type === 'edit') {
             const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
             const memberRef = doc(db, 'messes', messId, 'members', pendingDeposit.userId);
-            const messRef = doc(db, 'messes', messId);
 
             const originalDepositDoc = await transaction.get(originalDepositRef);
             if (!originalDepositDoc.exists()) throw new Error("Original deposit not found.");
             
             const amountChange = pendingDeposit.amount - originalDepositDoc.data().amount;
+            const newTotalDeposits = summary.totalDeposits + amountChange;
             
             transaction.update(originalDepositRef, { amount: pendingDeposit.amount });
             transaction.update(memberRef, { balance: increment(amountChange) });
-            transaction.update(messRef, { 'summary.totalDeposits': increment(amountChange) });
+            transaction.set(messRef, { summary: { ...summary, totalDeposits: newTotalDeposits } }, { merge: true });
 
         } else if (type === 'delete') {
             const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
             const memberRef = doc(db, 'messes', messId, 'members', pendingDeposit.userId);
-            const messRef = doc(db, 'messes', messId);
 
             const originalDepositDoc = await transaction.get(originalDepositRef);
             if (!originalDepositDoc.exists()) throw new Error("Original deposit not found.");
             
             const amountToReverse = originalDepositDoc.data().amount;
+            const newTotalDeposits = summary.totalDeposits - amountToReverse;
 
             transaction.delete(originalDepositRef);
             transaction.update(memberRef, { balance: increment(-amountToReverse) });
-            transaction.update(messRef, { 'summary.totalDeposits': increment(-amountToReverse) });
+            transaction.set(messRef, { summary: { ...summary, totalDeposits: newTotalDeposits } }, { merge: true });
         }
         
         transaction.delete(pendingDepositRef);
@@ -983,33 +1019,39 @@ export const rejectDeposit = async (messId: string, depositId: string) => {
 
 export const approveExpense = async (messId: string, pendingExpense: Expense) => {
     if (!db) throw new Error("Firestore not initialized");
-    const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', pendingExpense.id);
     
     await runTransaction(db, async (transaction) => {
-        const pendingExpenseSnap = await transaction.get(pendingExpenseRef);
+        const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', pendingExpense.id);
+        const messRef = doc(db, 'messes', messId);
+
+        const [pendingExpenseSnap, messDoc] = await Promise.all([
+            transaction.get(pendingExpenseRef),
+            transaction.get(messRef)
+        ]);
+
         if (!pendingExpenseSnap.exists()) {
             console.log("Pending expense does not exist, likely already processed.");
             return;
         }
-
-        const type = pendingExpense.type || 'new';
-        const messRef = doc(db, 'messes', messId);
-        const messDoc = await transaction.get(messRef);
         if (!messDoc.exists()) throw new Error("Mess not found.");
-        const summary = (messDoc.data() as Mess).summary;
+
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
+        const type = pendingExpense.type || 'new';
 
         if (type === 'new') {
             const newTotalExpenses = summary.totalExpenses + pendingExpense.amount;
             const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
-
             const newExpenseRef = doc(collection(db!, 'messes', messId, 'expenses'));
             const { id, status, ...finalExpenseData } = pendingExpense;
 
             transaction.set(newExpenseRef, { ...finalExpenseData, date: new Date(pendingExpense.date), status: 'approved', approvedAt: serverTimestamp() });
-            transaction.update(messRef, {
-                'summary.totalExpenses': newTotalExpenses,
-                'summary.mealRate': newMealRate
-            });
+            transaction.set(messRef, {
+                summary: {
+                    ...summary,
+                    totalExpenses: newTotalExpenses,
+                    mealRate: newMealRate
+                }
+            }, { merge: true });
         } else if (type === 'edit') {
             const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
             const originalExpenseDoc = await transaction.get(originalExpenseRef);
@@ -1022,10 +1064,13 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
             
             transaction.update(originalExpenseRef, { amount: pendingExpense.amount, description: pendingExpense.description });
-            transaction.update(messRef, {
-                'summary.totalExpenses': newTotalExpenses,
-                'summary.mealRate': newMealRate
-            });
+            transaction.set(messRef, {
+                summary: {
+                    ...summary,
+                    totalExpenses: newTotalExpenses,
+                    mealRate: newMealRate
+                }
+            }, { merge: true });
         } else if (type === 'delete') {
             const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
             const originalExpenseDoc = await transaction.get(originalExpenseRef);
@@ -1036,10 +1081,13 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             const newMealRate = summary.totalMeals > 0 ? newTotalExpenses / summary.totalMeals : 0;
 
             transaction.delete(originalExpenseRef);
-            transaction.update(messRef, {
-                'summary.totalExpenses': newTotalExpenses,
-                'summary.mealRate': newMealRate
-            });
+            transaction.set(messRef, {
+                summary: {
+                    ...summary,
+                    totalExpenses: newTotalExpenses,
+                    mealRate: newMealRate
+                }
+            }, { merge: true });
         }
 
         transaction.delete(pendingExpenseRef);
@@ -1075,7 +1123,6 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
     const hostMemberRef = doc(db, 'messes', messId, 'members', hostUserId);
     const guestLogRef = doc(collection(db, 'messes', messId, 'guestMealLog'));
     const dailyMealDocRef = doc(db, 'messes', messId, 'members', hostUserId, 'meals', date);
-    const messRef = doc(db, 'messes', messId);
 
     const totalGuestMealsChange = (guestMeals.breakfast || 0) + (guestMeals.lunch || 0) + (guestMeals.dinner || 0);
 
@@ -1086,34 +1133,34 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
     const userProfile = await getUserProfile(hostUserId);
 
     await runTransaction(db, async (transaction) => {
-        const hostMemberDoc = await transaction.get(hostMemberRef);
-        const dailyMealDoc = await transaction.get(dailyMealDocRef);
-        const messDoc = await transaction.get(messRef);
+        const messRef = doc(db, 'messes', messId);
+        const [hostMemberDoc, messDoc] = await Promise.all([
+            transaction.get(hostMemberRef),
+            transaction.get(messRef)
+        ]);
 
         if (!hostMemberDoc.exists() || !messDoc.exists()) {
             throw new Error("Host member or Mess not found.");
         }
         
-        // Update member's total meals
         transaction.update(hostMemberRef, { meals: increment(totalGuestMealsChange) });
-
-        // Update daily meal document with guest meals
         transaction.set(dailyMealDocRef, {
             guestBreakfast: increment(guestMeals.breakfast || 0),
             guestLunch: increment(guestMeals.lunch || 0),
             guestDinner: increment(guestMeals.dinner || 0),
         }, { merge: true });
 
-        // Update mess summary
-        const summary = (messDoc.data() as Mess).summary;
+        const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
         const newTotalMeals = summary.totalMeals + totalGuestMealsChange;
         const newMealRate = summary.totalExpenses > 0 ? summary.totalExpenses / newTotalMeals : 0;
-        transaction.update(messRef, {
-            'summary.totalMeals': newTotalMeals,
-            'summary.mealRate': newMealRate
-        });
+        transaction.set(messRef, {
+            summary: {
+                ...summary,
+                totalMeals: newTotalMeals,
+                mealRate: newMealRate
+            }
+        }, { merge: true });
         
-        // Create a log entry for auditing
         transaction.set(guestLogRef, {
             hostUserId,
             hostUserName: userProfile?.displayName || 'Unknown',
@@ -1138,23 +1185,7 @@ export const updateMealSettings = async (messId: string, settings: MealSettings)
 export const getTodaysMealStatus = async (messId: string, userId: string): Promise<MealStatus> => {
     if (!db) throw new Error("Firestore not initialized");
     const todayStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
-    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', todayStr);
-    const mealDocSnap = await getDoc(mealDocRef);
-
-    if (mealDocSnap.exists()) {
-        const data = mealDocSnap.data();
-        return {
-            breakfast: data.breakfast ?? 0,
-            lunch: data.lunch ?? 0,
-            dinner: data.dinner ?? 0,
-            isSetByUser: data.isSetByUser ?? false,
-            guestBreakfast: data.guestBreakfast ?? 0,
-            guestLunch: data.guestLunch ?? 0,
-            guestDinner: data.guestDinner ?? 0,
-        };
-    } else {
-        return { breakfast: 0, lunch: 0, dinner: 0, isSetByUser: false, guestBreakfast: 0, guestLunch: 0, guestDinner: 0 };
-    }
+    return getMealStatusForDate(messId, userId, todayStr);
 }
 
 export const updateMealsForToday = async (messId: string, userId: string, newMeals: MealStatus) => {
@@ -1186,11 +1217,11 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
 export const updateMealForDate = async (messId: string, userId: string, date: string, newMeals: Partial<MealStatus>) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const memberRef = doc(db, 'messes', messId, 'members', userId);
-    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', date);
-    const messRef = doc(db, 'messes', messId);
-
     await runTransaction(db, async (transaction) => {
+        const memberRef = doc(db, 'messes', messId, 'members', userId);
+        const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', date);
+        const messRef = doc(db, 'messes', messId);
+
         const [mealDoc, memberDoc, messDoc] = await Promise.all([
             transaction.get(mealDocRef),
             transaction.get(memberRef),
@@ -1203,28 +1234,27 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
         
         const oldMealData: MealStatus = mealDoc.exists() ? (mealDoc.data() as MealStatus) : { breakfast: 0, lunch: 0, dinner: 0, guestBreakfast: 0, guestLunch: 0, guestDinner: 0, isSetByUser: false };
         
-        // Calculate personal meal change
         const oldPersonalMeals = (oldMealData.breakfast || 0) + (oldMealData.lunch || 0) + (oldMealData.dinner || 0);
         const newPersonalMeals = (newMeals.breakfast ?? oldMealData.breakfast ?? 0) + (newMeals.lunch ?? oldMealData.lunch ?? 0) + (newMeals.dinner ?? oldMealData.dinner ?? 0);
         
-        // Calculate guest meal change
         const oldGuestMeals = (oldMealData.guestBreakfast || 0) + (oldMealData.guestLunch || 0) + (oldMealData.guestDinner || 0);
         const newGuestMeals = (newMeals.guestBreakfast ?? oldMealData.guestBreakfast ?? 0) + (newMeals.guestLunch ?? oldMealData.guestLunch ?? 0) + (newMeals.guestDinner ?? oldMealData.guestDinner ?? 0);
         
-        const personalMealChange = newPersonalMeals - oldPersonalMeals;
-        const guestMealChange = newGuestMeals - oldGuestMeals;
-        const totalMealChange = personalMealChange + guestMealChange;
+        const totalMealChange = (newPersonalMeals + newGuestMeals) - (oldPersonalMeals + oldGuestMeals);
 
         if (totalMealChange !== 0) {
             transaction.update(memberRef, { meals: increment(totalMealChange) });
             
-            const summary = (messDoc.data() as Mess).summary;
+            const summary = (messDoc.data() as Mess).summary || { totalExpenses: 0, totalDeposits: 0, totalMeals: 0, mealRate: 0 };
             const newTotalMessMeals = summary.totalMeals + totalMealChange;
             const newMealRate = newTotalMessMeals > 0 ? summary.totalExpenses / newTotalMessMeals : 0;
-            transaction.update(messRef, {
-                'summary.totalMeals': newTotalMessMeals,
-                'summary.mealRate': newMealRate
-            });
+            transaction.set(messRef, {
+                summary: {
+                    ...summary,
+                    totalMeals: newTotalMessMeals,
+                    mealRate: newMealRate
+                }
+            }, { merge: true });
         }
         
         transaction.set(mealDocRef, newMeals, { merge: true });
@@ -1289,27 +1319,30 @@ export const ensureDailyMealDocs = async (messId: string) => {
     if (!db) throw new Error("Firestore not initialized");
 
     const todayStr = new Date().toISOString().split('T')[0];
-
-    const membersRef = collection(db, 'messes', messId, 'members');
-    const messRef = doc(db, 'messes', messId);
     
     await runTransaction(db, async (transaction) => {
-        const messDoc = await transaction.get(messRef);
+        const messRef = doc(db, 'messes', messId);
+        const membersRef = collection(db, 'messes', messId, 'members');
+        const [messDoc, membersSnap] = await Promise.all([
+            transaction.get(messRef),
+            getFirestoreDocs(membersRef) // Use getDocs outside transaction for initial read
+        ]);
+        
         if(!messDoc.exists()) throw new Error("Mess not found");
-
-        const membersSnap = await getFirestoreDocs(membersRef);
+        
+        const mealDocRefsToRead = membersSnap.docs.map(memberDocSnap => doc(db, 'messes', messId, 'members', memberDocSnap.id, 'meals', todayStr));
+        const mealDocs = await Promise.all(mealDocRefsToRead.map(ref => transaction.get(ref)));
+        
         const membersToUpdate: {ref: any, defaultMealTotal: number}[] = [];
         const mealDocRefsToCreate: {ref: any, status: MealStatus}[] = [];
 
-        // --- 1. READ PHASE ---
-        for (const memberDocSnap of membersSnap.docs) {
-            const mealDocRef = doc(db, 'messes', messId, 'members', memberDocSnap.id, 'meals', todayStr);
-            const mealDoc = await transaction.get(mealDocRef);
+        membersSnap.docs.forEach((memberDocSnap, index) => {
+            const mealDoc = mealDocs[index];
             if (!mealDoc.exists()) {
                 const defaultStatus: MealStatus = {
-                    breakfast: messDoc.data().mealSettings?.isBreakfastOn ? 1 : 0,
-                    lunch: messDoc.data().mealSettings?.isLunchOn ? 1 : 0,
-                    dinner: messDoc.data().mealSettings?.isDinnerOn ? 1 : 0,
+                    breakfast: messDoc.data()?.mealSettings?.isBreakfastOn ? 1 : 0,
+                    lunch: messDoc.data()?.mealSettings?.isLunchOn ? 1 : 0,
+                    dinner: messDoc.data()?.mealSettings?.isDinnerOn ? 1 : 0,
                     isSetByUser: false,
                     guestBreakfast: 0,
                     guestLunch: 0,
@@ -1317,13 +1350,13 @@ export const ensureDailyMealDocs = async (messId: string) => {
                 };
                 const mealTotal = (defaultStatus.breakfast || 0) + (defaultStatus.lunch || 0) + (defaultStatus.dinner || 0);
                 membersToUpdate.push({ ref: memberDocSnap.ref, defaultMealTotal: mealTotal });
-                mealDocRefsToCreate.push({ ref: mealDocRef, status: defaultStatus });
+                mealDocRefsToCreate.push({ ref: mealDoc.ref, status: defaultStatus });
             }
-        }
+        });
+
 
         if(membersToUpdate.length === 0) return;
 
-        // --- 2. WRITE PHASE ---
         const messData = messDoc.data() as Mess;
         const messSummary = messData.summary || { totalMeals: 0, totalExpenses: 0, totalDeposits: 0, mealRate: 0 };
         let totalDefaultMealsAdded = 0;
@@ -1339,7 +1372,6 @@ export const ensureDailyMealDocs = async (messId: string) => {
             transaction.set(creation.ref, creation.status);
         });
         
-        // Update mess summary
         const newTotalMeals = messSummary.totalMeals + totalDefaultMealsAdded;
         const newMealRate = newTotalMeals > 0 ? messSummary.totalExpenses / newTotalMeals : 0;
         
@@ -1401,8 +1433,10 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         const memberRef = doc(db, 'messes', messId, 'members', memberId);
         const userRef = doc(db, 'users', memberId);
 
-        const memberDoc = await transaction.get(memberRef);
-        const userDoc = await transaction.get(userRef);
+        const [memberDoc, userDoc] = await Promise.all([
+            transaction.get(memberRef),
+            transaction.get(userRef)
+        ]);
         
         if (!memberDoc.exists()) {
             return;
