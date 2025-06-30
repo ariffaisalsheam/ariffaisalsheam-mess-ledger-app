@@ -26,7 +26,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { updateProfile, type User as FirebaseUser } from 'firebase/auth';
 
 if (!db) {
-  throw new Error("Firestore is not initialized");
+  throw new Error("Firestore is not initialized. Please ensure your Firebase project credentials are set up correctly in your .env.local file and that the server has been restarted.");
 }
 
 export type UserProfile = {
@@ -1059,7 +1059,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             }
         }
         
-        const newMealRate = currentSummary.totalMeals > 0 ? newTotalExpenses / currentSummary.totalMeals : 0;
+        const newMealRate = newTotalMeals > 0 ? newTotalExpenses / newTotalMeals : 0;
 
         // --- 3. WRITES ---
         finalWrites.forEach(writeOp => writeOp());
