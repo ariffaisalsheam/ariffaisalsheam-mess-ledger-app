@@ -1335,7 +1335,11 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
         const memberRef = doc(db, 'messes', messId, 'members', memberId);
         const userRef = doc(db, 'users', memberId);
 
+        // --- All reads first ---
         const memberDoc = await transaction.get(memberRef);
+        const userDoc = await transaction.get(userRef);
+
+        // --- Logic and writes after ---
         if (!memberDoc.exists()) {
             // Member already removed or never existed.
             return;
@@ -1347,7 +1351,6 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
 
         transaction.delete(memberRef);
         
-        const userDoc = await transaction.get(userRef);
         if (userDoc.exists()) {
             transaction.update(userRef, { messId: '', role: '' });
         }
