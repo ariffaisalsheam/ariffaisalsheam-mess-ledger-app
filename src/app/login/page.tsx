@@ -102,7 +102,11 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, provider);
       await handleSuccessfulLogin(result.user);
     } catch (error: any) {
-      handleError("Could not sign you in with Google. Please try again.");
+      if (error.code === 'auth/unauthorized-domain') {
+          handleError("Domain not authorized for Google Sign-In. Please add it to your Google Cloud Console OAuth settings.");
+      } else {
+        handleError("Could not sign you in with Google. Please try again.");
+      }
     } finally {
         setLoading(false);
     }
