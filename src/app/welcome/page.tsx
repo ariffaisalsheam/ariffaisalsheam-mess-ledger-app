@@ -147,8 +147,10 @@ export default function WelcomePage() {
       </div>
       <Dialog open={isProfileDialogOpen} onOpenChange={setProfileDialogOpen}>
         <DialogContent className="sm:max-w-xl p-0">
-          <DialogTitle className="sr-only">Personal Information</DialogTitle>
-          <DialogDescription className="sr-only">Update your name and profile picture.</DialogDescription>
+           <DialogHeader className="p-0 absolute">
+             <DialogTitle className="sr-only">Edit Profile</DialogTitle>
+             <DialogDescription className="sr-only">Update your name and profile picture here.</DialogDescription>
+          </DialogHeader>
           <ProfileEditor 
             userProfile={userProfile}
             onProfileUpdate={fetchProfile}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect } from 'react';
@@ -15,12 +16,23 @@ const NotificationHandler = () => {
         if (!messaging || !auth.currentUser) return;
 
         try {
+          // Check for VAPID key first
+          if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) {
+            console.error("VAPID key is missing. Push notifications will not work. Please add NEXT_PUBLIC_FIREBASE_VAPID_KEY to your .env.local file.");
+            toast({
+                title: "Push Notification Error",
+                description: "Configuration for push notifications is incomplete.",
+                variant: "destructive",
+            });
+            return;
+          }
+
           const permission = await Notification.requestPermission();
           if (permission === 'granted') {
             console.log('Notification permission granted.');
 
             const currentToken = await getToken(messaging, {
-              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY, // Make sure to add this to your .env.local file
+              vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
             });
 
             if (currentToken) {
