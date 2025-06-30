@@ -59,6 +59,12 @@ export default function LoginPage() {
   // NEW: Setup reCAPTCHA verifier
   useEffect(() => {
     if (!auth) return;
+
+    // Log the hostname to help debug domain authorization issues
+    if (typeof window !== "undefined") {
+      console.log("Firebase Auth requests are coming from:", window.location.hostname);
+    }
+    
     // This effect runs once to set up the invisible reCAPTCHA.
     const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
       'size': 'invisible',
