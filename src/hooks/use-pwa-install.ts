@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -20,7 +21,7 @@ export const usePwaInstall = () => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       // Cast the generic event to our specific interface
-      setInstallPrompt(event as BeforeInstallpwa-install);
+      setInstallPrompt(event as BeforeInstallPromptEvent);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
