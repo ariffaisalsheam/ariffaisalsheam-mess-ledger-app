@@ -7,12 +7,6 @@ import { Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function InstallPwaNavButton() {
-  const { canInstall } = usePwaInstall();
-
-  if (!canInstall) {
-    return null;
-  }
-
   return (
     <Link
       href="/dashboard/install"

@@ -7,12 +7,7 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 
 export function InstallPwaButton() {
-  const { canInstall } = usePwaInstall();
   const router = useRouter();
-
-  if (!canInstall) {
-    return null;
-  }
 
   const handleInstallClick = (e: React.MouseEvent) => {
     e.preventDefault();
