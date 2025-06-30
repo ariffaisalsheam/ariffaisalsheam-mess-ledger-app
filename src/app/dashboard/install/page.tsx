@@ -4,12 +4,22 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePwaInstall } from "@/hooks/use-pwa-install";
-import { Download, Smartphone, Laptop, CheckCircle, WifiOff } from "lucide-react";
+import { Download, Smartphone, Laptop, CheckCircle, WifiOff, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from 'react';
 
 export default function InstallPage() {
   const { canInstall, promptInstall } = usePwaInstall();
   const router = useRouter();
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsStandalone(true);
+    }
+  }, []);
 
   const handleInstallClick = () => {
     if (canInstall) {
@@ -34,6 +44,53 @@ export default function InstallPage() {
       description: "Enjoy a faster, full-screen experience without browser toolbars."
     }
   ];
+  
+  const renderInstallUI = () => {
+    if (!isClient) {
+      return null; // Don't render anything on the server to prevent hydration mismatch
+    }
+
+    if (isStandalone) {
+      return (
+        <div className="flex flex-col items-center gap-4 pt-4">
+          <div className="flex items-center gap-2 text-lg font-medium text-success">
+            <CheckCircle className="h-6 w-6" />
+            <p>App is already installed!</p>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-md">
+            You are currently using the installed version of Mess Ledger.
+          </p>
+          <Button variant="outline" onClick={() => router.push('/dashboard')}>
+            Back to Dashboard
+          </Button>
+        </div>
+      );
+    }
+
+    if (canInstall) {
+      return (
+        <Button size="lg" className="w-full" onClick={handleInstallClick}>
+          <Download className="mr-2 h-5 w-5" />
+          Install App
+        </Button>
+      );
+    }
+
+    return (
+      <div className="flex flex-col items-center gap-4 pt-4">
+        <div className="flex items-center gap-2 text-lg font-medium text-muted-foreground">
+          <AlertTriangle className="h-6 w-6" />
+          <p>Installation Not Available</p>
+        </div>
+        <p className="text-muted-foreground text-sm max-w-md">
+          Your browser may not support PWA installation. Please try using a recent version of Chrome, Edge, or Safari on a mobile device for the best experience.
+        </p>
+        <Button variant="outline" onClick={() => router.push('/dashboard')}>
+          Back to Dashboard
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
@@ -60,25 +117,8 @@ export default function InstallPage() {
             ))}
           </div>
           
-          {canInstall ? (
-            <Button size="lg" className="w-full" onClick={handleInstallClick}>
-              <Download className="mr-2 h-5 w-5" />
-              Install App
-            </Button>
-          ) : (
-             <div className="flex flex-col items-center gap-4 pt-4">
-                <div className="flex items-center gap-2 text-lg font-medium text-success">
-                    <CheckCircle className="h-6 w-6" />
-                    <p>App is already installed!</p>
-                </div>
-                <p className="text-muted-foreground text-sm max-w-md">
-                    If not, your browser may not support PWA installation. Try using Chrome, Edge, or Safari on a mobile device for the best experience.
-                </p>
-                <Button variant="outline" onClick={() => router.push('/dashboard')}>
-                    Back to Dashboard
-                </Button>
-             </div>
-          )}
+          {renderInstallUI()}
+          
         </CardContent>
       </Card>
     </div>
