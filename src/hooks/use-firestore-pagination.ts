@@ -7,6 +7,7 @@ import {
   getDocs,
   startAfter,
   limit,
+  query,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
@@ -46,15 +47,17 @@ export function useFirestorePagination<T extends { id: string, date: string }>(
     setLoading(true);
 
     try {
-      let q = baseQuery;
+      let paginatedQuery: Query<DocumentData>;
+
       if (currentLastDoc) {
-        q = limit(q, pageSize);
-        q = startAfter(q, currentLastDoc);
+        // For subsequent pages, we apply startAfter and limit constraints
+        paginatedQuery = query(baseQuery, startAfter(currentLastDoc), limit(pageSize));
       } else {
-        q = limit(q, pageSize);
+        // For the initial fetch, we only apply the limit constraint
+        paginatedQuery = query(baseQuery, limit(pageSize));
       }
 
-      const documentSnapshots = await getDocs(q);
+      const documentSnapshots = await getDocs(paginatedQuery);
       const newDocs = documentSnapshots.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
