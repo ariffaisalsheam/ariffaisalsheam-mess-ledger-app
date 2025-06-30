@@ -129,7 +129,7 @@ export default function DashboardLayout({
                     setLoading(false);
 
                 } else {
-                    // Allow access to settings page even without a mess
+                    // Allow access to settings and install pages even without a mess
                     if (pathname !== '/dashboard/settings' && pathname !== '/dashboard/install') {
                         router.push('/welcome');
                     } else {
