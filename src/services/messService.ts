@@ -77,6 +77,7 @@ export interface Expense {
         amount: number;
         description: string;
     };
+    status?: 'pending' | 'approved' | 'rejected'; // Added status
 }
 
 export interface Deposit {
@@ -89,6 +90,7 @@ export interface Deposit {
     type?: 'new' | 'edit' | 'delete';
     originalId?: string;
     originalAmount?: number;
+    status?: 'pending' | 'approved' | 'rejected'; // Added status
 }
 
 export interface MealSettings {
@@ -185,7 +187,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
     if (!db || !role) return () => {};
 
     let q;
-    const notificationsRef = collection(db, 'messes', messId, 'notifications');
+    const notificationsRef = collection(db!, 'messes', messId, 'notifications');
 
     if (role === 'manager') {
         q = query(notificationsRef, where('userId', 'in', ['manager', userId]));
@@ -216,7 +218,7 @@ export const onNotificationsChange = (messId: string, userId: string, role: 'man
 export const markNotificationAsRead = async (messId: string, notificationId: string) => {
     if (!db) return;
     try {
-        const notificationRef = doc(db, 'messes', messId, 'notifications', notificationId);
+        const notificationRef = doc(db!, 'messes', messId, 'notifications', notificationId);
         await updateDoc(notificationRef, { read: true });
     } catch (error) {
         console.error("Error marking notification as read:", error);
@@ -227,7 +229,7 @@ export const markNotificationAsRead = async (messId: string, notificationId: str
 export const markAllNotificationsAsRead = async (messId: string, userId: string, role: 'manager' | 'member') => {
     if (!db || !role) return;
     try {
-        const notificationsRef = collection(db, 'messes', messId, 'notifications');
+        const notificationsRef = collection(db!, 'messes', messId, 'notifications');
         let q;
         if (role === 'manager') {
             q = query(notificationsRef, where('userId', 'in', ['manager', userId]), where('read', '==', false));
@@ -255,7 +257,7 @@ export const markAllNotificationsAsRead = async (messId: string, userId: string,
 export const deleteNotification = async (messId: string, notificationId: string) => {
     if (!db) return;
     try {
-        const notificationRef = doc(db, 'messes', messId, 'notifications', notificationId);
+        const notificationRef = doc(db!, 'messes', messId, 'notifications', notificationId);
         await deleteDoc(notificationRef);
     } catch (error) {
         console.error("Error deleting notification:", error);
@@ -266,7 +268,7 @@ export const deleteNotification = async (messId: string, notificationId: string)
 export const deleteAllNotificationsForUser = async (messId: string, userId: string, role: 'manager' | 'member') => {
     if (!db || !role) return;
     try {
-        const notificationsRef = collection(db, 'messes', messId, 'notifications');
+        const notificationsRef = collection(db!, 'messes', messId, 'notifications');
         let q;
         if (role === 'manager') {
             q = query(notificationsRef, where('userId', 'in', ['manager', userId]));
@@ -331,7 +333,7 @@ export const updateUserProfile = async (
       throw new Error("Authentication error.");
     }
   
-    const userDocRef = doc(db, 'users', userId);
+    const userDocRef = doc(db!, 'users', userId);
     const userProfile = await getUserProfile(userId);
   
     let newPhotoURL: string | undefined = undefined;
@@ -383,8 +385,8 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
   if (!db) throw new Error("Firestore not initialized");
 
   const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-  const batch = writeBatch(db);
-  const messRef = doc(collection(db, 'messes'));
+  const batch = writeBatch(db!);
+  const messRef = doc(collection(db!, 'messes'));
 
   // 1. Create the mess document with default meal settings and summary
   batch.set(messRef, {
@@ -410,14 +412,14 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
   });
 
   // 2. Update the user's profile
-  const userRef = doc(db, 'users', user.uid);
+  const userRef = doc(db!, 'users', user.uid);
   batch.update(userRef, {
     messId: messRef.id,
     role: 'manager',
   });
 
   // 3. Add user as the first member
-  const memberRef = doc(db, 'messes', messRef.id, 'members', user.uid);
+  const memberRef = doc(db!, 'messes', messRef.id, 'members', user.uid);
   batch.set(memberRef, {
       name: user.displayName,
       email: user.email,
@@ -434,7 +436,7 @@ export const createMess = async (messName: string, user: FirebaseUser) => {
 export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUser) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const messesRef = collection(db, 'messes');
+    const messesRef = collection(db!, 'messes');
     const q = query(messesRef, where("inviteCode", "==", inviteCode.toUpperCase()), limit(1));
     const querySnapshot = await getFirestoreDocs(q);
 
@@ -452,13 +454,13 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
     
     const batch = writeBatch(db);
 
-    const userRef = doc(db, 'users', user.uid);
+    const userRef = doc(db!, 'users', user.uid);
     batch.update(userRef, {
         messId: messId,
         role: 'member',
     });
 
-    const memberRef = doc(db, 'messes', messId, 'members', user.uid);
+    const memberRef = doc(db!, 'messes', messId, 'members', user.uid);
     batch.set(memberRef, {
         name: user.displayName,
         email: user.email,
@@ -479,7 +481,7 @@ export const joinMessByInviteCode = async (inviteCode: string, user: FirebaseUse
 
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
   if (!db) throw new Error("Firestore not initialized");
-  const userRef = doc(db, 'users', uid);
+  const userRef = doc(db!, 'users', uid);
   const userSnap = await getDoc(userRef);
   if (userSnap.exists()) {
     return userSnap.data() as UserProfile;
@@ -489,7 +491,7 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
 
 export const getMessById = async (messId: string): Promise<Mess | null> => {
     if (!db) throw new Error("Firestore not initialized");
-    const messRef = doc(db, 'messes', messId);
+    const messRef = doc(db!, 'messes', messId);
     const messSnap = await getDoc(messRef);
     if (messSnap.exists()) {
         return { id: messSnap.id, ...messSnap.data() } as Mess;
@@ -501,14 +503,14 @@ export const updateMessName = async (messId: string, newName: string) => {
     if (!db) throw new Error("Firestore not initialized");
     if (!newName.trim()) throw new Error("Mess name cannot be empty.");
     
-    const messRef = doc(db, 'messes', messId);
+    const messRef = doc(db!, 'messes', messId);
     await updateDoc(messRef, { name: newName.trim() });
 };
 
 export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const membersColRef = collection(db, 'messes', messId, 'members');
+    const membersColRef = collection(db!, 'messes', messId, 'members');
     const membersSnap = await getFirestoreDocs(membersColRef);
     const memberDocs = membersSnap.docs;
 
@@ -533,7 +535,7 @@ export const getMembersOfMess = async (messId: string): Promise<Member[]> => {
 
 export const onMemberDetailsChange = (messId: string, userId: string, callback: (member: Member | null) => void) => {
     if (!db) throw new Error("Firestore not initialized");
-    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const memberRef = doc(db!, 'messes', messId, 'members', userId);
     
     const unsubscribe = onSnapshot(memberRef, async (memberSnap) => {
         if (memberSnap.exists()) {
@@ -559,8 +561,8 @@ export const onMemberDetailsChange = (messId: string, userId: string, callback: 
 export const onPendingItemsChange = (messId: string, callback: (count: number) => void) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
-    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    const pendingDepositsRef = collection(db!, 'messes', messId, 'pendingDeposits');
+    const pendingExpensesRef = collection(db!, 'messes', messId, 'pendingExpenses');
 
     let depositCount = 0;
     let expenseCount = 0;
@@ -587,7 +589,7 @@ export const onPendingItemsChange = (messId: string, callback: (count: number) =
 
 export const getMemberDetails = async (messId: string, userId: string): Promise<Member | null> => {
     if (!db) throw new Error("Firestore not initialized");
-    const memberRef = doc(db, 'messes', messId, 'members', userId);
+    const memberRef = doc(db!, 'messes', messId, 'members', userId);
     const memberSnap = await getDoc(memberRef);
 
     if (!memberSnap.exists()) {
@@ -627,12 +629,12 @@ const safeDateToISOString = (dateValue: any): string => {
 
 export const getExpenses = async (messId: string, count?: number): Promise<Expense[]> => {
     if (!db) return [];
-    const expensesCol = collection(db, 'messes', messId, 'expenses');
-    const constraints = [orderBy("date", "desc")];
+    const expensesCol = collection(db!, 'messes', messId, 'expenses');
+    let q = query(expensesCol, orderBy("date", "desc"));
     if (count) {
-        constraints.push(limit(count));
+        q = query(q, limit(count));
     }
-    const snapshot = await getFirestoreDocs(query(expensesCol, ...constraints));
+    const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Expense;
@@ -641,12 +643,12 @@ export const getExpenses = async (messId: string, count?: number): Promise<Expen
 
 export const getDeposits = async (messId: string, count?: number): Promise<Deposit[]> => {
     if (!db) return [];
-    const depositsCol = collection(db, 'messes', messId, 'deposits');
-    const constraints = [orderBy("date", "desc")];
+    const depositsCol = collection(db!, 'messes', messId, 'deposits');
+    let q = query(depositsCol, orderBy("date", "desc"));
     if (count) {
-        constraints.push(limit(count));
+        q = query(q, limit(count));
     }
-    const snapshot = await getFirestoreDocs(query(depositsCol, ...constraints));
+    const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
         const data = doc.data();
         return { id: doc.id, ...data, date: safeDateToISOString(data.date) } as Deposit;
@@ -657,7 +659,7 @@ export const getDeposits = async (messId: string, count?: number): Promise<Depos
 
 export const getDepositsForUser = async (messId: string, userId: string): Promise<Deposit[]> => {
     if (!db) return [];
-    const depositsCol = collection(db, 'messes', messId, 'deposits');
+    const depositsCol = collection(db!, 'messes', messId, 'deposits');
     const q = query(depositsCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
@@ -668,7 +670,7 @@ export const getDepositsForUser = async (messId: string, userId: string): Promis
 
 export const getExpensesForUser = async (messId: string, userId: string): Promise<Expense[]> => {
     if (!db) return [];
-    const expensesCol = collection(db, 'messes', messId, 'expenses');
+    const expensesCol = collection(db!, 'messes', messId, 'expenses');
     const q = query(expensesCol, where("userId", "==", userId), orderBy("date", "desc"));
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
@@ -680,10 +682,10 @@ export const getExpensesForUser = async (messId: string, userId: string): Promis
 export const updateDeposit = async (messId: string, deposit: Deposit, newAmount: number) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    await runTransaction(db, async (transaction) => {
-        const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
-        const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
-        const messRef = doc(db, 'messes', messId);
+    await runTransaction(db!, async (transaction) => {
+        const depositRef = doc(db!, 'messes', messId, 'deposits', deposit.id);
+        const memberRef = doc(db!, 'messes', messId, 'members', deposit.userId);
+        const messRef = doc(db!, 'messes', messId);
         
         const amountChange = newAmount - deposit.amount;
         
@@ -696,10 +698,10 @@ export const updateDeposit = async (messId: string, deposit: Deposit, newAmount:
 export const deleteDeposit = async (messId: string, deposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    await runTransaction(db, async (transaction) => {
-        const depositRef = doc(db, 'messes', messId, 'deposits', deposit.id);
-        const memberRef = doc(db, 'messes', messId, 'members', deposit.userId);
-        const messRef = doc(db, 'messes', messId);
+    await runTransaction(db!, async (transaction) => {
+        const depositRef = doc(db!, 'messes', messId, 'deposits', deposit.id);
+        const memberRef = doc(db!, 'messes', messId, 'members', deposit.userId);
+        const messRef = doc(db!, 'messes', messId);
         
         transaction.update(memberRef, { balance: increment(-deposit.amount) });
         transaction.delete(depositRef);
@@ -710,10 +712,10 @@ export const deleteDeposit = async (messId: string, deposit: Deposit) => {
 export const updateExpense = async (messId: string, expenseId: string, amount: number, description: string) => {
     if (!db) throw new Error("Firestore not initialized");
     
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
-        const messRef = doc(db, 'messes', messId);
+        const expenseRef = doc(db!, 'messes', messId, 'expenses', expenseId);
+        const messRef = doc(db!, 'messes', messId);
         const [expenseDoc, messDoc] = await Promise.all([
             transaction.get(expenseRef),
             transaction.get(messRef)
@@ -744,10 +746,10 @@ export const updateExpense = async (messId: string, expenseId: string, amount: n
 export const deleteExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
 
-     await runTransaction(db, async (transaction) => {
+     await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const expenseRef = doc(db, 'messes', messId, 'expenses', expenseId);
-        const messRef = doc(db, 'messes', messId);
+        const expenseRef = doc(db!, 'messes', messId, 'expenses', expenseId);
+        const messRef = doc(db!, 'messes', messId);
         const [expenseDoc, messDoc] = await Promise.all([
             transaction.get(expenseRef),
             transaction.get(messRef)
@@ -780,7 +782,7 @@ export const deleteExpense = async (messId: string, expenseId: string) => {
 export const addDeposit = async (messId: string, userId: string, amount: number) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(userId);
-    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    const pendingDepositsRef = collection(db!, 'messes', messId, 'pendingDeposits');
     await addDoc(pendingDepositsRef, {
         type: 'new',
         amount,
@@ -799,7 +801,7 @@ export const addDeposit = async (messId: string, userId: string, amount: number)
 export const addExpense = async (messId: string, userId: string, amount: number, description: string, receiptUrl: string | null = null) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(userId);
-    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    const pendingExpensesRef = collection(db!, 'messes', messId, 'pendingExpenses');
     const expenseData: any = {
         type: 'new',
         amount,
@@ -823,7 +825,7 @@ export const addExpense = async (messId: string, userId: string, amount: number,
 export const requestDepositEdit = async (messId: string, deposit: Deposit, newAmount: number) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(deposit.userId);
-    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    const pendingDepositsRef = collection(db!, 'messes', messId, 'pendingDeposits');
     await addDoc(pendingDepositsRef, {
         type: 'edit',
         originalId: deposit.id,
@@ -844,7 +846,7 @@ export const requestDepositEdit = async (messId: string, deposit: Deposit, newAm
 export const requestDepositDelete = async (messId: string, deposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(deposit.userId);
-    const pendingDepositsRef = collection(db, 'messes', messId, 'pendingDeposits');
+    const pendingDepositsRef = collection(db!, 'messes', messId, 'pendingDeposits');
     await addDoc(pendingDepositsRef, {
         type: 'delete',
         originalId: deposit.id,
@@ -864,7 +866,7 @@ export const requestDepositDelete = async (messId: string, deposit: Deposit) => 
 export const requestExpenseEdit = async (messId: string, expense: Expense, newAmount: number, newDescription: string) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(expense.userId);
-    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    const pendingExpensesRef = collection(db!, 'messes', messId, 'pendingExpenses');
     await addDoc(pendingExpensesRef, {
         type: 'edit',
         originalId: expense.id,
@@ -889,7 +891,7 @@ export const requestExpenseEdit = async (messId: string, expense: Expense, newAm
 export const requestExpenseDelete = async (messId: string, expense: Expense) => {
     if (!db) throw new Error("Firestore not initialized");
     const user = await getUserProfile(expense.userId);
-    const pendingExpensesRef = collection(db, 'messes', messId, 'pendingExpenses');
+    const pendingExpensesRef = collection(db!, 'messes', messId, 'pendingExpenses');
     await addDoc(pendingExpensesRef, {
         type: 'delete',
         originalId: expense.id,
@@ -909,7 +911,7 @@ export const requestExpenseDelete = async (messId: string, expense: Expense) => 
 
 export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => {
     if (!db) return [];
-    const depositsCol = collection(db, 'messes', messId, 'pendingDeposits');
+    const depositsCol = collection(db!, 'messes', messId, 'pendingDeposits');
     const snapshot = await getFirestoreDocs(query(depositsCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
@@ -919,7 +921,7 @@ export const getPendingDeposits = async (messId: string): Promise<Deposit[]> => 
 
 export const getPendingExpenses = async (messId: string): Promise<Expense[]> => {
     if (!db) return [];
-    const expensesCol = collection(db, 'messes', messId, 'pendingExpenses');
+    const expensesCol = collection(db!, 'messes', messId, 'pendingExpenses');
     const snapshot = await getFirestoreDocs(query(expensesCol, orderBy("date", "desc")));
     return snapshot.docs.map(doc => {
         const data = doc.data();
@@ -930,9 +932,9 @@ export const getPendingExpenses = async (messId: string): Promise<Expense[]> => 
 export const approveDeposit = async (messId: string, pendingDeposit: Deposit) => {
     if (!db) throw new Error("Firestore not initialized");
     
-    await runTransaction(db, async (transaction) => {
-        const pendingDepositRef = doc(db, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
-        const messRef = doc(db, 'messes', messId);
+    await runTransaction(db!, async (transaction) => {
+        const pendingDepositRef = doc(db!, 'messes', messId, 'pendingDeposits', pendingDeposit.id);
+        const messRef = doc(db!, 'messes', messId);
 
         const pendingDepositSnap = await transaction.get(pendingDepositRef);
         
@@ -942,7 +944,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
         }
         
         const type = pendingDeposit.type || 'new';
-        const memberRef = doc(db, 'messes', messId, 'members', pendingDeposit.userId);
+        const memberRef = doc(db!, 'messes', messId, 'members', pendingDeposit.userId);
 
         if (type === 'new') {
             const newDepositRef = doc(collection(db!, 'messes', messId, 'deposits'));
@@ -953,7 +955,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
             transaction.update(messRef, { 'summary.totalDeposits': increment(pendingDeposit.amount) });
         
         } else if (type === 'edit') {
-            const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
+            const originalDepositRef = doc(db!, 'messes', messId, 'deposits', pendingDeposit.originalId!);
             const originalDepositDoc = await transaction.get(originalDepositRef);
             if (!originalDepositDoc.exists()) throw new Error("Original deposit not found.");
             
@@ -964,7 +966,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
             transaction.update(messRef, { 'summary.totalDeposits': increment(amountChange) });
 
         } else if (type === 'delete') {
-            const originalDepositRef = doc(db, 'messes', messId, 'deposits', pendingDeposit.originalId!);
+            const originalDepositRef = doc(db!, 'messes', messId, 'deposits', pendingDeposit.originalId!);
             const originalDepositDoc = await transaction.get(originalDepositRef);
             if (!originalDepositDoc.exists()) throw new Error("Original deposit not found.");
             
@@ -988,7 +990,7 @@ export const approveDeposit = async (messId: string, pendingDeposit: Deposit) =>
 
 export const rejectDeposit = async (messId: string, depositId: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    const depositRef = doc(db, 'messes', messId, 'pendingDeposits', depositId);
+    const depositRef = doc(db!, 'messes', messId, 'pendingDeposits', depositId);
     const depositSnap = await getDoc(depositRef);
 
     if (depositSnap.exists()) {
@@ -1004,10 +1006,10 @@ export const rejectDeposit = async (messId: string, depositId: string) => {
 export const approveExpense = async (messId: string, pendingExpense: Expense) => {
     if (!db) throw new Error("Firestore not initialized");
     
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const pendingExpenseRef = doc(db, 'messes', messId, 'pendingExpenses', pendingExpense.id);
-        const messRef = doc(db, 'messes', messId);
+        const pendingExpenseRef = doc(db!, 'messes', messId, 'pendingExpenses', pendingExpense.id);
+        const messRef = doc(db!, 'messes', messId);
         
         const [pendingExpenseSnap, messDoc] = await Promise.all([
             transaction.get(pendingExpenseRef),
@@ -1037,7 +1039,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             newTotalExpenses += pendingExpense.amount;
         
         } else if (type === 'edit') {
-            const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
+            const originalExpenseRef = doc(db!, 'messes', messId, 'expenses', pendingExpense.originalId!);
             const originalExpenseDoc = await transaction.get(originalExpenseRef);
             if (!originalExpenseDoc.exists()) throw new Error("Original expense not found for edit.");
             
@@ -1048,7 +1050,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             newTotalExpenses += amountChange;
 
         } else if (type === 'delete') {
-            const originalExpenseRef = doc(db, 'messes', messId, 'expenses', pendingExpense.originalId!);
+            const originalExpenseRef = doc(db!, 'messes', messId, 'expenses', pendingExpense.originalId!);
             const originalExpenseDoc = await transaction.get(originalExpenseRef);
             if (!originalExpenseDoc.exists()) {
                  console.warn(`Original expense ${pendingExpense.originalId} not found for deletion, it might have been deleted already.`);
@@ -1059,7 +1061,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
             }
         }
         
-        const newMealRate = newTotalMeals > 0 ? newTotalExpenses / newTotalMeals : 0;
+        const newMealRate = currentSummary.totalMeals > 0 ? newTotalExpenses / currentSummary.totalMeals : 0;
 
         // --- 3. WRITES ---
         finalWrites.forEach(writeOp => writeOp());
@@ -1079,7 +1081,7 @@ export const approveExpense = async (messId: string, pendingExpense: Expense) =>
 
 export const rejectExpense = async (messId: string, expenseId: string) => {
     if (!db) throw new Error("Firestore not initialized");
-    const expenseRef = doc(db, 'messes', messId, 'pendingExpenses', expenseId);
+    const expenseRef = doc(db!, 'messes', messId, 'pendingExpenses', expenseId);
     const expenseSnap = await getDoc(expenseRef);
     if(expenseSnap.exists()) {
         const expenseData = expenseSnap.data();
@@ -1097,9 +1099,9 @@ export const rejectExpense = async (messId: string, expenseId: string) => {
 export const logGuestMeal = async (messId: string, hostUserId: string, date: string, guestMeals: { breakfast: number, lunch: number, dinner: number }) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    const hostMemberRef = doc(db, 'messes', messId, 'members', hostUserId);
-    const guestLogRef = doc(collection(db, 'messes', messId, 'guestMealLog'));
-    const dailyMealDocRef = doc(db, 'messes', messId, 'members', hostUserId, 'meals', date);
+    const hostMemberRef = doc(db!, 'messes', messId, 'members', hostUserId);
+    const guestLogRef = doc(collection(db!, 'messes', messId, 'guestMealLog'));
+    const dailyMealDocRef = doc(db!, 'messes', messId, 'members', hostUserId, 'meals', date);
 
     const totalGuestMealsChange = (guestMeals.breakfast || 0) + (guestMeals.lunch || 0) + (guestMeals.dinner || 0);
 
@@ -1109,9 +1111,9 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
     
     const userProfile = await getUserProfile(hostUserId);
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const messRef = doc(db, 'messes', messId);
+        const messRef = doc(db!, 'messes', messId);
         const messDoc = await transaction.get(messRef);
         if (!messDoc.exists()) throw new Error(`Mess not found. MessId: ${messId}`);
 
@@ -1151,7 +1153,7 @@ export const logGuestMeal = async (messId: string, hostUserId: string, date: str
 
 export const updateMealSettings = async (messId: string, settings: MealSettings) => {
     if (!db) throw new Error("Firestore not initialized");
-    const messRef = doc(db, 'messes', messId);
+    const messRef = doc(db!, 'messes', messId);
     await updateDoc(messRef, { mealSettings: settings });
 }
 
@@ -1168,7 +1170,7 @@ export const updateMealsForToday = async (messId: string, userId: string, newMea
 
 export const getMealStatusForDate = async (messId: string, userId: string, dateStr: string): Promise<MealStatus> => {
     if (!db) throw new Error("Firestore not initialized");
-    const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', dateStr);
+    const mealDocRef = doc(db!, 'messes', messId, 'members', userId, 'meals', dateStr);
     const mealDocSnap = await getDoc(mealDocRef);
 
     if (mealDocSnap.exists()) {
@@ -1190,11 +1192,11 @@ export const getMealStatusForDate = async (messId: string, userId: string, dateS
 export const updateMealForDate = async (messId: string, userId: string, date: string, newMeals: Partial<MealStatus>) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const memberRef = doc(db, 'messes', messId, 'members', userId);
-        const mealDocRef = doc(db, 'messes', messId, 'members', userId, 'meals', date);
-        const messRef = doc(db, 'messes', messId);
+        const memberRef = doc(db!, 'messes', messId, 'members', userId);
+        const mealDocRef = doc(db!, 'messes', messId, 'members', userId, 'meals', date);
+        const messRef = doc(db!, 'messes', messId);
         
         const [mealDoc, messDoc] = await Promise.all([
             transaction.get(mealDocRef),
@@ -1240,7 +1242,7 @@ export const updateMealForDate = async (messId: string, userId: string, date: st
 export const getMealLedgerForUser = async (messId: string, userId: string, days: number = 30): Promise<MealLedgerEntry[]> => {
     if (!db) throw new Error("Firestore not initialized");
     
-    const mealsColRef = collection(db, 'messes', messId, 'members', userId, 'meals');
+    const mealsColRef = collection(db!, 'messes', messId, 'members', userId, 'meals');
     const dateLimit = new Date();
     dateLimit.setDate(dateLimit.getDate() - days);
     const dateLimitStr = dateLimit.toISOString().split('T')[0];
@@ -1295,7 +1297,7 @@ export const ensureDailyMealDocs = async (messId: string) => {
     if (!db) throw new Error("Firestore not initialized");
     
     const todayStr = new Date().toISOString().split('T')[0];
-    const membersRef = collection(db, 'messes', messId, 'members');
+    const membersRef = collection(db!, 'messes', messId, 'members');
     const membersQuerySnap = await getFirestoreDocs(query(membersRef));
     const memberDocs = membersQuerySnap.docs;
 
@@ -1303,14 +1305,14 @@ export const ensureDailyMealDocs = async (messId: string) => {
         return;
     }
 
-    await runTransaction(db, async (transaction) => {
+    await runTransaction(db!, async (transaction) => {
         // --- 1. READS ---
-        const messRef = doc(db, 'messes', messId);
+        const messRef = doc(db!, 'messes', messId);
         const messDoc = await transaction.get(messRef);
         
         if(!messDoc.exists()) throw new Error("Mess not found");
         
-        const mealDocRefs = memberDocs.map(memberDoc => doc(db, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr));
+        const mealDocRefs = memberDocs.map(memberDoc => doc(db!, 'messes', messId, 'members', memberDoc.id, 'meals', todayStr));
         const mealDocsSnaps = await Promise.all(mealDocRefs.map(ref => transaction.get(ref)));
 
         // --- 2. CALCULATIONS ---
@@ -1360,12 +1362,12 @@ export const ensureDailyMealDocs = async (messId: string) => {
 export const transferManagerRole = async (messId: string, currentManagerId: string, newManagerId: string) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    await runTransaction(db, async (transaction) => {
-        const messRef = doc(db, 'messes', messId);
-        const oldManagerMemberRef = doc(db, 'messes', messId, 'members', currentManagerId);
-        const newManagerMemberRef = doc(db, 'messes', messId, 'members', newManagerId);
-        const oldManagerUserRef = doc(db, 'users', currentManagerId);
-        const newManagerUserRef = doc(db, 'users', newManagerId);
+    await runTransaction(db!, async (transaction) => {
+        const messRef = doc(db!, 'messes', messId);
+        const oldManagerMemberRef = doc(db!, 'messes', messId, 'members', currentManagerId);
+        const newManagerMemberRef = doc(db!, 'messes', messId, 'members', newManagerId);
+        const oldManagerUserRef = doc(db!, 'users', currentManagerId);
+        const newManagerUserRef = doc(db!, 'users', newManagerId);
 
         // Verify old manager is actually the manager
         const messDoc = await transaction.get(messRef);
@@ -1401,9 +1403,9 @@ export const transferManagerRole = async (messId: string, currentManagerId: stri
 export const removeMemberFromMess = async (messId: string, memberId: string) => {
     if (!db) throw new Error("Firestore not initialized");
 
-    await runTransaction(db, async (transaction) => {
-        const memberRef = doc(db, 'messes', messId, 'members', memberId);
-        const userRef = doc(db, 'users', memberId);
+    await runTransaction(db!, async (transaction) => {
+        const memberRef = doc(db!, 'messes', messId, 'members', memberId);
+        const userRef = doc(db!, 'users', memberId);
 
         const [memberDoc, userDoc] = await Promise.all([
             transaction.get(memberRef),
@@ -1429,8 +1431,8 @@ export const removeMemberFromMess = async (messId: string, memberId: string) => 
 export const deleteMess = async (messId: string) => {
     if (!db || !auth?.currentUser) throw new Error("Authentication required.");
 
-    const batch = writeBatch(db);
-    const messRef = doc(db, 'messes', messId);
+    const batch = writeBatch(db!);
+    const messRef = doc(db!, 'messes', messId);
 
     // Verify the user is the manager
     const messSnap = await getDoc(messRef);
@@ -1439,13 +1441,13 @@ export const deleteMess = async (messId: string) => {
     }
 
     // 1. Get all members to update their user profiles and delete their subcollections
-    const membersColRef = collection(db, 'messes', messId, 'members');
+    const membersColRef = collection(db!, 'messes', messId, 'members');
     const membersSnap = await getFirestoreDocs(membersColRef);
     for (const memberDoc of membersSnap.docs) {
         const memberId = memberDoc.id;
         
         // Delete member's 'meals' subcollection documents
-        const mealsColRef = collection(db, 'messes', messId, 'members', memberId, 'meals');
+        const mealsColRef = collection(db!, 'messes', messId, 'members', memberId, 'meals');
         const mealsSnap = await getFirestoreDocs(mealsColRef);
         mealsSnap.docs.forEach(doc => batch.delete(doc.ref));
 
@@ -1453,7 +1455,7 @@ export const deleteMess = async (messId: string) => {
         batch.delete(memberDoc.ref);
         
         // Update the user's main profile in the 'users' collection to clear mess details
-        const userRef = doc(db, 'users', memberId);
+        const userRef = doc(db!, 'users', memberId);
         batch.update(userRef, { messId: '', role: '' });
     }
 
@@ -1468,7 +1470,7 @@ export const deleteMess = async (messId: string) => {
     ];
 
     for (const subcol of subcollectionsToDelete) {
-        const subcolRef = collection(db, 'messes', messId, subcol);
+        const subcolRef = collection(db!, 'messes', messId, subcol);
         const subcolSnap = await getFirestoreDocs(subcolRef);
         subcolSnap.docs.forEach(doc => batch.delete(doc.ref));
     }
@@ -1488,7 +1490,7 @@ const getExpensesForMonth = async (messId: string, year: number, month: number):
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59);
 
-    const expensesCol = collection(db, 'messes', messId, 'expenses');
+    const expensesCol = collection(db!, 'messes', messId, 'expenses');
     const q = query(expensesCol, where("date", ">=", Timestamp.fromDate(startDate)), where("date", "<=", Timestamp.fromDate(endDate)));
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
@@ -1502,7 +1504,7 @@ const getDepositsForMonth = async (messId: string, year: number, month: number):
     const startDate = new Date(year, month, 1);
     const endDate = new Date(year, month + 1, 0, 23, 59, 59);
 
-    const depositsCol = collection(db, 'messes', messId, 'deposits');
+    const depositsCol = collection(db!, 'messes', messId, 'deposits');
     const q = query(depositsCol, where("date", ">=", Timestamp.fromDate(startDate)), where("date", "<=", Timestamp.fromDate(endDate)));
     const snapshot = await getFirestoreDocs(q);
     return snapshot.docs.map(doc => {
@@ -1515,7 +1517,7 @@ const getMealsForMonth = async (messId: string, memberId: string, year: number, 
     if (!db) return { personalMeals: 0, guestMeals: 0 };
     
     const monthStr = `${year}-${(month + 1).toString().padStart(2, '0')}`; // YYYY-MM
-    const mealsColRef = collection(db, 'messes', messId, 'members', memberId, 'meals');
+    const mealsColRef = collection(db!, 'messes', messId, 'members', memberId, 'meals');
     const q = query(mealsColRef, where(documentId(), ">=", monthStr + '-01'), where(documentId(), "<=", monthStr + '-31'));
     const querySnapshot = await getFirestoreDocs(q);
     
@@ -1537,7 +1539,7 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
     
     // Caching layer for reports
     const reportId = `${messId}_${year}_${month}`;
-    const reportRef = doc(db, 'monthlyReports', reportId);
+    const reportRef = doc(db!, 'monthlyReports', reportId);
     const reportSnap = await getDoc(reportRef);
     
     if (reportSnap.exists()) {
@@ -1605,4 +1607,17 @@ export const generateMonthlyReport = async (messId: string, year: number, month:
     await setDoc(reportRef, finalReport);
 
     return finalReport;
+};
+
+export const invalidateMonthlyReportCache = async (messId: string, year: number, month: number) => {
+    if (!db) throw new Error("Firestore not initialized");
+    const reportId = `${messId}_${year}_${month}`;
+    const reportRef = doc(db!, 'monthlyReports', reportId);
+    try {
+        await deleteDoc(reportRef);
+        console.log(`Cache for report ${reportId} invalidated.`);
+    } catch (error) {
+        console.error(`Error invalidating cache for report ${reportId}:`, error);
+        throw error;
+    }
 };

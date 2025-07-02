@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -21,7 +20,10 @@ export const usePwaInstall = () => {
     const handleBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       // Cast the generic event to our specific interface
-      setInstallPrompt(event as BeforeInstallPromptEvent);
+      // Add a small timeout to allow other components to render first
+      setTimeout(() => {
+        setInstallPrompt(event as BeforeInstallPromptEvent);
+      }, 50); // 50ms delay
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -38,10 +40,9 @@ export const usePwaInstall = () => {
     }
     await installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
-    console.log(`User response to the install prompt: ${outcome}`);
     // The prompt can only be used once. Clear it.
     setInstallPrompt(null);
   };
 
-  return { canInstall: !!installPrompt, promptInstall };
+  return { isInstallable: !!installPrompt, promptInstall };
 };

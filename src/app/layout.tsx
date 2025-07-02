@@ -1,10 +1,12 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
-import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from "@/components/theme-provider";
 import { Suspense } from 'react';
-import { Analytics } from '@/components/analytics';
+import React from 'react'; // Explicitly import React
+import { Analytics } from "@/components/analytics";
+import InstallPromptBanner from "@/components/features/InstallPromptBanner";
+import { PwaInstallProvider } from "@/components/pwa-install-wrapper"; // Import PwaInstallProvider
 
 export const metadata: Metadata = {
   title: 'Mess Ledger',
@@ -32,7 +34,10 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
         >
-          {children}
+          <PwaInstallProvider>
+            {children}
+            <InstallPromptBanner /> {/* Move banner inside provider */}
+          </PwaInstallProvider>
           <Toaster />
         </ThemeProvider>
         <Suspense fallback={null}>

@@ -18,7 +18,7 @@ export const sendPushNotification = functions.firestore
     const messId = context.params.messId;
     const {userId, message, link} = notificationData;
 
-    let targetUserIds: string[] = [];
+    const targetUserIds: string[] = [];
 
     // Determine the target user(s)
     if (userId === "manager") {
@@ -68,10 +68,10 @@ export const sendPushNotification = functions.firestore
       },
       webpush: {
         notification: {
-          icon: "/icon-192x192.png", // Ensure this icon exists in your /public folder
+          icon: "/icon-192x192.png",
         },
         fcm_options: {
-          link: link || `/dashboard`,
+          link: link || "/dashboard",
         },
       },
     };
@@ -82,7 +82,7 @@ export const sendPushNotification = functions.firestore
     const response = await admin.messaging().sendToDevice(allTokens, payload);
 
     // Clean up invalid tokens
-    const tokensToRemove: Promise<any>[] = [];
+    const tokensToRemove: Promise<unknown>[] = [];
     response.results.forEach((result, index) => {
       const error = result.error;
       if (error) {
@@ -96,12 +96,14 @@ export const sendPushNotification = functions.firestore
           console.log("Scheduling cleanup for invalid token:", invalidToken);
           // Find the user associated with the invalid token and remove it.
           // This is a simplified approach. A more robust system might batch these.
-          userDocs.forEach(userDoc => {
-             const userData = userDoc.data();
-             if (userData.fcmTokens && userData.fcmTokens.includes(invalidToken)) {
-                 const newTokens = userData.fcmTokens.filter((t: string) => t !== invalidToken);
-                 tokensToRemove.push(userDoc.ref.update({ fcmTokens: newTokens }));
-             }
+          userDocs.forEach((userDoc) => {
+            const userData = userDoc.data();
+            if (userData.fcmTokens && userData.fcmTokens.includes(invalidToken)) {
+              const newTokens = userData.fcmTokens.filter(
+                (t: string) => t !== invalidToken
+              );
+              tokensToRemove.push(userDoc.ref.update({fcmTokens: newTokens}));
+            }
           });
         }
       }

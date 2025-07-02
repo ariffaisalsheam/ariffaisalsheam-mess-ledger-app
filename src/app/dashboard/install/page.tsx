@@ -1,15 +1,14 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { usePwaInstall } from "@/hooks/use-pwa-install";
+import { usePwaInstallContext } from "@/components/pwa-install-wrapper";
 import { Download, Smartphone, Laptop, CheckCircle, WifiOff, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from 'react';
 
 export default function InstallPage() {
-  const { canInstall, promptInstall } = usePwaInstall();
+  const { isInstallable, promptInstall } = usePwaInstallContext();
   const router = useRouter();
   const [isStandalone, setIsStandalone] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -22,7 +21,7 @@ export default function InstallPage() {
   }, []);
 
   const handleInstallClick = () => {
-    if (canInstall) {
+    if (isInstallable) {
       promptInstall();
     }
   };
@@ -67,7 +66,7 @@ export default function InstallPage() {
       );
     }
 
-    if (canInstall) {
+    if (isInstallable) {
       return (
         <Button size="lg" className="w-full" onClick={handleInstallClick}>
           <Download className="mr-2 h-5 w-5" />

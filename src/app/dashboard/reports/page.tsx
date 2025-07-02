@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
-import { getUserProfile, generateMonthlyReport, getMessById, type UserProfile, type MonthlyReport, type Expense, type Deposit } from '@/services/messService';
+import { getUserProfile, generateMonthlyReport, getMessById, invalidateMonthlyReportCache, type UserProfile, type MonthlyReport, type Expense, type Deposit } from '@/services/messService';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import jsPDF from 'jspdf';
@@ -26,13 +26,14 @@ export default function ReportsPage() {
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [regenerating, setRegenerating] = useState(false); // New state for regeneration
     const [selectedMonth, setSelectedMonth] = useState<string>(`${new Date().getFullYear()}-${new Date().getMonth()}`);
 
     const router = useRouter();
     const { toast } = useToast();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        const unsubscribe = onAuthStateChanged(auth!, (currentUser) => { // Assert auth!
             if (currentUser) {
                 setLoading(true);
                 getUserProfile(currentUser.uid).then(async (profile) => {
@@ -52,24 +53,38 @@ export default function ReportsPage() {
         return () => unsubscribe();
     }, [router, toast]);
     
-    const handleGenerateReport = useCallback(async () => {
+    const handleGenerateReport = useCallback(async (forceRegenerate: boolean = false) => {
         if (!userProfile?.messId || generating) return;
 
         setGenerating(true);
         setReport(null);
         try {
             const [year, month] = selectedMonth.split('-').map(Number);
-            toast({ title: "Generating Report", description: "Fetching records... this may take a moment for the first time." });
+            
+            if (forceRegenerate) {
+                setRegenerating(true);
+                toast({ title: "Invalidating Cache", description: "Clearing previous report data..." });
+                await invalidateMonthlyReportCache(userProfile.messId, year, month);
+                toast({ title: "Cache Invalidated", description: "Generating fresh report now." });
+            } else {
+                toast({ title: "Generating Report", description: "Fetching records... this may take a moment for the first time." });
+            }
+
             const reportData = await generateMonthlyReport(userProfile.messId, year, month);
             setReport(reportData);
-             toast({ title: "Report Ready", description: "Your monthly report has been generated successfully." });
+            toast({ title: "Report Ready", description: "Your monthly report has been generated successfully." });
         } catch (error) {
             console.error("Failed to generate report:", error);
             toast({ title: "Error", description: "Could not generate the report. Please try again.", variant: "destructive" });
         } finally {
             setGenerating(false);
+            setRegenerating(false);
         }
     }, [userProfile, selectedMonth, toast, generating]);
+
+    const handleRegenerateReport = useCallback(() => {
+        handleGenerateReport(true); // Call with forceRegenerate = true
+    }, [handleGenerateReport]);
 
     const handleDownload = async () => {
         const reportElement = document.getElementById('pdf-content');
@@ -157,10 +172,16 @@ export default function ReportsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button onClick={handleGenerateReport} disabled={generating}>
-                            {generating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                        <Button onClick={() => handleGenerateReport(false)} disabled={generating}>
+                            {generating && !regenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             Generate Report
                         </Button>
+                        {report && (
+                            <Button onClick={handleRegenerateReport} disabled={generating} variant="outline">
+                                {regenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                                Regenerate Report
+                            </Button>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -168,7 +189,7 @@ export default function ReportsPage() {
             {generating && (
                  <div className="flex flex-col items-center justify-center text-center p-12 border-2 border-dashed rounded-lg">
                     <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                    <p className="text-lg font-semibold">Generating your report...</p>
+                    <p className="text-lg font-semibold">{regenerating ? "Invalidating cache and regenerating report..." : "Generating your report..."}</p>
                     <p className="text-muted-foreground">This might take a moment.</p>
                 </div>
             )}
@@ -183,12 +204,18 @@ export default function ReportsPage() {
                                 <CardTitle className="font-headline text-2xl">Mess Report: {report.month} {report.year}</CardTitle>
                                 <CardDescription>A summary of all financial activities and meal counts for the selected month.</CardDescription>
                             </div>
-                            <Button onClick={handleDownload} variant="outline" disabled={downloading}>
-                                {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                                Download PDF
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button onClick={handleDownload} variant="outline" disabled={downloading}>
+                                    {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                                    Download PDF
+                                </Button>
+                                <Button onClick={handleRegenerateReport} disabled={generating} variant="outline">
+                                    {regenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                                    Regenerate Report
+                                </Button>
+                            </div>
                         </div>
-                    </CardHeader>
+                    </CardHeader> {/* Added missing closing tag */}
                     <CardContent className="grid gap-6">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center border-b pb-6">
                             <div><p className="text-sm text-muted-foreground">Total Expenses</p><p className="text-2xl font-bold">৳{report.totalExpenses.toFixed(2)}</p></div>
