@@ -176,12 +176,6 @@ export default function ReportsPage() {
                             {generating && !regenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                             Generate Report
                         </Button>
-                        {report && (
-                            <Button onClick={handleRegenerateReport} disabled={generating} variant="outline">
-                                {regenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-                                Regenerate Report
-                            </Button>
-                        )}
                     </div>
                 </CardContent>
             </Card>
