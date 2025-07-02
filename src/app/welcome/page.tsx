@@ -31,22 +31,24 @@ export default function WelcomePage() {
     const router = useRouter();
 
     const fetchProfile = useCallback(() => {
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-            setLoading(true);
-            getUserProfile(currentUser.uid).then((profile) => {
-                setUserProfile(profile);
-                setLoading(false);
-            });
+        const currentUser = auth?.currentUser; // Use optional chaining here
+        if (!currentUser) { // If currentUser is null, do not proceed
+            return;
         }
-    }, []);
+        setLoading(true);
+        getUserProfile(currentUser.uid).then((profile) => {
+            setUserProfile(profile);
+            setLoading(false);
+        });
+    }, []); // No need for auth in dependencies as it's checked in useEffect.
 
     useEffect(() => {
-        if (!auth) {
+        if (!auth) { // Initial check, should redirect if auth is null
           router.push('/login');
           return;
         }
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => { // auth is guaranteed not null here
             if (currentUser) {
                 setUser(currentUser);
                 fetchProfile();
@@ -55,10 +57,10 @@ export default function WelcomePage() {
             }
         });
         return () => unsubscribe();
-    }, [router, fetchProfile]);
+    }, [router, fetchProfile]); // No need for auth in dependencies as it's checked initially.
     
     const handleLogout = async () => {
-        if (auth) {
+        if (auth) { // auth is guaranteed not null here due to the useEffect check.
             await auth.signOut();
             router.push('/login');
         }
@@ -119,9 +121,9 @@ export default function WelcomePage() {
                     Create one or join an existing one to get started.
                 </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 pt-2 flex flex-col md:flex-row gap-4">
-                <Link href="/create-mess" className="w-full">
-                    <Button className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
+            <CardContent className="p-6 pt-2 flex flex-col md:flex-row md:justify-center md:space-x-4 space-y-4 md:space-y-0">
+                <Link href="/create-mess" className="flex-1 md:flex-none">
+                    <Button className="w-full md:w-auto h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
                         <div>
                             <div className="flex items-center gap-3">
                                 <PlusCircle className="h-5 w-5"/>
@@ -131,8 +133,8 @@ export default function WelcomePage() {
                         </div>
                     </Button>
                 </Link>
-                <Link href="/join-mess" className="w-full">
-                    <Button variant="secondary" className="w-full h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
+                <Link href="/join-mess" className="flex-1 md:flex-none">
+                    <Button variant="secondary" className="w-full md:w-auto h-auto flex-col items-start p-4 text-left transition-transform hover:scale-[1.02] justify-between">
                          <div>
                             <div className="flex items-center gap-3">
                                 <Users className="h-5 w-5"/>

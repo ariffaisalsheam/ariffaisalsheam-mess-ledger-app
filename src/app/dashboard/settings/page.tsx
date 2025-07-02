@@ -31,6 +31,7 @@ import {
     transferManagerRole,
     updateMessName,
     deleteMess,
+    deleteUserAccount, // Import the new function
     type UserProfile as AppUserProfile, 
     type MealSettings,
     type Member
@@ -70,11 +71,11 @@ export default function SettingsPage() {
     });
 
     const fetchData = useCallback(() => {
-        const currentUser = auth.currentUser;
+        const currentUser = auth?.currentUser; // Use optional chaining here
         if (!currentUser) {
             router.push('/login');
             return;
-        };
+        }
 
         setLoading(true);
         getUserProfile(currentUser.uid).then(profile => {
@@ -103,16 +104,21 @@ export default function SettingsPage() {
                     router.push('/welcome');
                 }
             } else {
-                auth.signOut();
+                auth!.signOut(); // auth cannot be null here because we redirected if it was.
                 router.push('/login');
             }
         }).finally(() => {
             setLoading(false);
         });
-    }, [toast, router]);
+    }, [toast, router]); // auth is not a dependency as it's assumed stable after initial check.
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (!auth) { // First, check if auth is null
+            router.push('/login');
+            return;
+        }
+        
+        const unsubscribe = onAuthStateChanged(auth, (user) => { // auth is guaranteed not null here
             if (user) {
                 fetchData();
             } else {
@@ -120,7 +126,7 @@ export default function SettingsPage() {
             }
         });
         return () => unsubscribe();
-    }, [fetchData, router]);
+    }, [fetchData, router]); // auth is not a dependency as it's assumed stable after initial check.
     
     const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { id, value } = e.target;
@@ -194,6 +200,22 @@ export default function SettingsPage() {
         } finally {
             setIsSubmitting(false);
             setDeleteInput("");
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        if (!userProfile?.uid) return;
+        setIsSubmitting(true);
+        try {
+            await deleteUserAccount(userProfile.uid);
+            toast({ title: "Success!", description: "Your account has been permanently deleted." });
+            router.push('/login'); // Redirect to login after account deletion
+        } catch (error: any) {
+            console.error("Failed to delete account:", error);
+            toast({ title: "Error", description: error.message || "Failed to delete account. Please re-authenticate if prompted.", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+            // reset deleteInput, but it's shared with delete mess, so maybe not here directly
         }
     };
 
@@ -406,6 +428,50 @@ export default function SettingsPage() {
             </Card>
         )
       )}
+
+      {/* New Card for Delete Account */}
+      <Card className="border-destructive">
+          <CardHeader>
+              <CardTitle className="font-headline text-destructive">Delete Account</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between">
+              <div>
+                  <p className="font-medium">Permanently delete your account</p>
+                  <p className="text-sm text-muted-foreground">Once you delete your account, there is no going back. Please be certain.</p>
+              </div>
+              <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                      <Button variant="destructive">Delete Account</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                      <AlertDialogHeader>
+                          <AlertDialogTitle className="font-headline">Are you absolutely sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete your account and all associated data.
+                              <br/><br/>
+                              To confirm, please type <strong>DELETE MY ACCOUNT</strong> in the box below.
+                          </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <Input 
+                          placeholder="Type DELETE MY ACCOUNT to confirm" 
+                          value={deleteInput} // Reusing deleteInput for simplicity, consider separate state if needed
+                          onChange={(e) => setDeleteInput(e.target.value)}
+                      />
+                      <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                              disabled={deleteInput !== "DELETE MY ACCOUNT" || isSubmitting}
+                              onClick={handleDeleteAccount}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              I understand, delete my account
+                          </AlertDialogAction>
+                      </AlertDialogFooter>
+                  </AlertDialogContent>
+              </AlertDialog>
+          </CardContent>
+      </Card>
     </div>
   );
 }

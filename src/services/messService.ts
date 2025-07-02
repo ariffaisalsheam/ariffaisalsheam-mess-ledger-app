@@ -1324,9 +1324,9 @@ export const ensureDailyMealDocs = async (messId: string) => {
             const mealDoc = mealDocsSnaps[index];
             if (!mealDoc.exists()) {
                 const defaultStatus: MealStatus = {
-                    breakfast: messData?.mealSettings?.isBreakfastOn ? 1 : 0,
-                    lunch: messData?.mealSettings?.isLunchOn ? 1 : 0,
-                    dinner: messData?.mealSettings?.isDinnerOn ? 1 : 0,
+                    breakfast: 0, // Meals should not be counted if not set
+                    lunch: 0,     // Meals should not be counted if not set
+                    dinner: 0,    // Meals should not be counted if not set
                     isSetByUser: false,
                     guestBreakfast: 0,
                     guestLunch: 0,
@@ -1619,5 +1619,67 @@ export const invalidateMonthlyReportCache = async (messId: string, year: number,
     } catch (error) {
         console.error(`Error invalidating cache for report ${reportId}:`, error);
         throw error;
+    }
+};
+
+export const deleteUserAccount = async (userId: string) => {
+    if (!db || !auth) throw new Error("Firebase not initialized");
+
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== userId) {
+        throw new Error("Authentication error: User mismatch or not logged in.");
+    }
+
+    // 1. Get user profile to check mess status and role
+    const userProfile = await getUserProfile(userId);
+    if (!userProfile) {
+        throw new Error("User profile not found.");
+    }
+
+    // Prevent manager from deleting account without transferring role or deleting mess
+    if (userProfile.messId && userProfile.role === 'manager') {
+        const mess = await getMessById(userProfile.messId);
+        if (mess && mess.managerId === userId) {
+            throw new Error("You are the manager of a mess. Please transfer your role or delete the mess first.");
+        }
+    }
+
+    await runTransaction(db!, async (transaction) => {
+        // Prepare batch for deletions
+        const batch = writeBatch(db!);
+
+        // 2. Remove user from mess members subcollection if they are a member
+        if (userProfile.messId) {
+            const memberRef = doc(db!, 'messes', userProfile.messId, 'members', userId);
+            const memberSnap = await transaction.get(memberRef);
+            if (memberSnap.exists()) {
+                batch.delete(memberRef);
+            }
+
+            // Also delete their meal history subcollection
+            const mealsColRef = collection(db!, 'messes', userProfile.messId, 'members', userId, 'meals');
+            const mealsSnap = await getFirestoreDocs(mealsColRef); // Use getFirestoreDocs for subcollection
+            mealsSnap.docs.forEach(mealDoc => batch.delete(mealDoc.ref));
+        }
+
+        // 3. Delete user's profile document from 'users' collection
+        const userDocRef = doc(db!, 'users', userId);
+        batch.delete(userDocRef);
+
+        // Commit all batched writes
+        await batch.commit();
+    });
+
+    // 4. Delete user from Firebase Authentication
+    // This must be done AFTER Firestore operations as it might log out the user
+    try {
+        await currentUser.delete();
+    } catch (error: any) {
+        // Re-authenticate if necessary (e.g., "auth/requires-recent-login")
+        if (error.code === 'auth/requires-recent-login') {
+            throw new Error("Please re-authenticate to delete your account. Log out and log in again, then try deleting.");
+        }
+        console.error("Error deleting Firebase Auth user:", error);
+        throw new Error("Failed to delete user account from authentication. " + error.message);
     }
 };
