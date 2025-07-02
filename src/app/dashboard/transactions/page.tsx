@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Loader2, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Trash2, FileText } from "lucide-react";
 import { format } from 'date-fns';
 import { useToast } from "@/hooks/use-toast";
 import { onAuthStateChanged } from 'firebase/auth';
@@ -74,6 +74,11 @@ const TransactionListComponent = ({
             <TableCell className="text-right">
               {canTakeAction ? (
                 <>
+                  {type === 'expense' && (item as Expense).receiptUrl && (
+                    <Button variant="ghost" size="icon" onClick={() => window.open((item as Expense).receiptUrl!, '_blank')}>
+                      <FileText className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button variant="ghost" size="icon" onClick={() => onEdit(item)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
@@ -113,7 +118,7 @@ export default function TransactionsPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, (currentUser) => {
       if (currentUser) {
         getUserProfile(currentUser.uid).then(profile => {
           setUserProfile(profile);

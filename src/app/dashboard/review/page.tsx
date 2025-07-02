@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, X, Loader2, ArrowRight } from "lucide-react";
+import { Check, X, Loader2, ArrowRight, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -36,7 +36,7 @@ export default function ReviewPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
       } else {
@@ -187,6 +187,12 @@ export default function ReviewPage() {
                 <p className="text-sm text-muted-foreground">Submitted by {item.addedBy} on {format(new Date(item.date), "PPP")}</p>
             </div>
             <div className="flex gap-2">
+                {item.receiptUrl && (
+                    <Button variant="outline" size="icon" onClick={() => window.open(item.receiptUrl!, '_blank')} disabled={submitting[item.id]}>
+                        <FileText className="h-4 w-4" />
+                        <span className="sr-only">View Receipt</span>
+                    </Button>
+                )}
                 <Button variant="outline" size="icon" className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => handleAction(item, 'reject', 'expense')} disabled={submitting[item.id]}>
                     {submitting[item.id] ? <Loader2 className="h-4 w-4 animate-spin"/> : <X className="h-4 w-4" />}
                     <span className="sr-only">Reject</span>
