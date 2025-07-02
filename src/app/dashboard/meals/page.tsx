@@ -27,7 +27,6 @@ import { useRouter } from 'next/navigation';
 import { 
     getUserProfile, 
     getTodaysMealStatus, 
-    updateMealForToday, 
     getMessById,
     getMealHistoryForMess,
     updateMealsForToday,
@@ -117,7 +116,7 @@ export default function MealsPage() {
   }, [userProfile, toast]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth!, (currentUser) => { // Assert auth!
       if (currentUser) {
         setUser(currentUser);
         getUserProfile(currentUser.uid).then(setUserProfile);
@@ -340,10 +339,13 @@ export default function MealsPage() {
                                 <div>
                                     <Label htmlFor={`${meal}-count`} className="text-base font-medium capitalize">{meal}</Label>
                                     <p className="text-sm text-muted-foreground">
-                                        { mealSettings?.isCutoffEnabled 
-                                            ? `Cut-off: ${cutoffTime}. ${isLocked ? <span className="font-bold text-destructive">Locked.</span> : ''}`
-                                            : 'Cut-off times are disabled by manager.'
-                                        }
+                                        { mealSettings?.isCutoffEnabled ? (
+                                            <>
+                                                Cut-off: {cutoffTime}. {isLocked && <span className="font-bold text-destructive">Locked.</span>}
+                                            </>
+                                        ) : (
+                                            'Cut-off times are disabled by manager.'
+                                        )}
                                     </p>
                                 </div>
                                 <MealCountControl meal={meal as MealType} isLocked={isLocked} />
