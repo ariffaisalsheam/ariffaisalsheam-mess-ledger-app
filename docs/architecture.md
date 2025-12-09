@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This project is a Next.js (App Router) PWA backed by Firebase services. It focuses on mess/hostel meal tracking, expense/deposit approvals, notifications, and reporting.
+This project (Mess Ledger—original blueprint name: KhanaConnect) is a Next.js (App Router) PWA backed by Firebase services. It focuses on mess/hostel meal tracking, expense/deposit approvals, notifications, and reporting.
 
 ## Key pieces
 
@@ -19,7 +19,8 @@ This project is a Next.js (App Router) PWA backed by Firebase services. It focus
   - `useFirestorePagination` for paginated Firestore lists; `useIsMobile` for responsive logic.
   - `Analytics` wires Firebase Analytics on route changes.
 - **Cloud Functions**: `functions/src/index.ts` listens to `messes/{messId}/notifications/{notificationId}` and sends web push notifications to stored user tokens, cleaning up invalid tokens.
-- **PWA assets**: `public/manifest.json`, `public/sw.js`, and `public/firebase-messaging-sw.js` (must be updated to your Firebase project config).
+- **PWA assets**: `public/manifest.json`, `public/firebase-messaging-sw.js`, and next-pwa output files such as `public/sw.js` / `public/workbox-*.js`.
+  - Update the messaging service worker keys (`apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, `appId`) to match your Firebase project—see the README setup section.
 - **Genkit**: `src/ai/genkit.ts` initializes Genkit with the Google AI plugin; `src/ai/dev.ts` is a stub for local flow loading.
 
 ## Data model (Firestore)

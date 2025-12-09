@@ -57,7 +57,9 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_FIREBASE_VAPID_KEY=...   # Required for web push
 ```
 
-3) Align the Firebase Messaging service worker with the same project credentials by updating `public/firebase-messaging-sw.js` (it currently contains placeholder config).
+3) Align the Firebase Messaging service worker with the same project credentials:
+   - Open `public/firebase-messaging-sw.js`.
+   - Replace the `apiKey`, `authDomain`, `projectId`, `storageBucket`, `messagingSenderId`, and `appId` values with the same ones in your `.env.local`. The file currently points to the sample `mess-x` project.
 
 4) Run the app (defaults to port 9002):
 ```bash
