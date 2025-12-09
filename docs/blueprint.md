@@ -1,4 +1,4 @@
-# **App Name**: KhanaConnect
+# **App Name**: Mess Ledger (previously codenamed KhanaConnect)
 
 ## Core Features:
 
